@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import type { CSSProperties } from 'react'
 import { Brand } from '../../components/Brand.tsx'
 import {
@@ -92,9 +93,15 @@ function GazeStage() {
 
 export function LandingPage() {
   const navigate = useNavigate()
-  const { phase, request, requestAudioOnly } = useMediaSession()
+  const { phase, request, requestAudioOnly, leave } = useMediaSession()
   const capabilities = useCapabilities()
   const touch = capabilities?.touchMode ?? isTouchMode()
+
+  // Returning to the landing page (including with the browser back button)
+  // should always switch the camera and microphone off.
+  useEffect(() => {
+    leave()
+  }, [leave])
 
   const enter = () => {
     if (phase === 'requesting') return
@@ -372,7 +379,8 @@ export function LandingPage() {
           <Brand />
           <p>An experiment in gaze and voice. Built with React, Vite, MediaPipe.</p>
           <p className="site-footer__fine">
-            Speech model: Parakeet Redux · CC BY 4.0
+            Speech model: Parakeet Redux · CC BY 4.0 · Head tracking:
+            MediaPipe · Apache 2.0
           </p>
         </div>
       </footer>

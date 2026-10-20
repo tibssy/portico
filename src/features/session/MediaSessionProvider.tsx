@@ -7,6 +7,7 @@ import type {
   MediaPhase,
   MediaSessionValue,
 } from './session-context.ts'
+import type { HeadCalibration } from '../tracking/head-pose.ts'
 
 const VIDEO_CONSTRAINTS: MediaTrackConstraints = {
   width: { ideal: 960 },
@@ -90,6 +91,8 @@ export function MediaSessionProvider({ children }: { children: ReactNode }) {
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [error, setError] = useState<MediaError | null>(null)
   const [entered, setEntered] = useState(false)
+  const [calibration, setCalibrationState] =
+    useState<HeadCalibration | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const inFlight = useRef(false)
   const requestId = useRef(0)
@@ -144,6 +147,7 @@ export function MediaSessionProvider({ children }: { children: ReactNode }) {
         streamRef.current = nextStream
         setStream(nextStream)
         setMode(wantsVideo ? 'full' : 'voice')
+        setCalibrationState(null)
         setPhase('ready')
       } catch (cause) {
         if (id !== requestId.current) return
@@ -173,6 +177,7 @@ export function MediaSessionProvider({ children }: { children: ReactNode }) {
     streamRef.current = null
     setStream(null)
     setError(null)
+    setCalibrationState(null)
     setMode('browse')
     setPhase('ready')
     setEntered(true)
@@ -182,12 +187,17 @@ export function MediaSessionProvider({ children }: { children: ReactNode }) {
     setEntered(true)
   }, [])
 
+  const setCalibration = useCallback((next: HeadCalibration) => {
+    setCalibrationState(next)
+  }, [])
+
   const leave = useCallback(() => {
     requestId.current += 1
     stopTracks(streamRef.current)
     streamRef.current = null
     setStream(null)
     setError(null)
+    setCalibrationState(null)
     setPhase('idle')
     setMode('full')
     setEntered(false)
@@ -211,10 +221,12 @@ export function MediaSessionProvider({ children }: { children: ReactNode }) {
       stream,
       error,
       entered,
+      calibration,
       request,
       requestAudioOnly,
       continueWithoutMedia,
       markEntered,
+      setCalibration,
       leave,
     }),
     [
@@ -223,10 +235,12 @@ export function MediaSessionProvider({ children }: { children: ReactNode }) {
       stream,
       error,
       entered,
+      calibration,
       request,
       requestAudioOnly,
       continueWithoutMedia,
       markEntered,
+      setCalibration,
       leave,
     ],
   )

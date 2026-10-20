@@ -52,6 +52,54 @@
   box-shadow: 0 0 8px rgba(158, 211, 106, 0.45);
 }
 
+.shop__actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.shop__recalibrate {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.shop__gaze {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 1.4rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.shop__gaze strong {
+  font-weight: 500;
+  color: var(--signal);
+}
+
+.shop__gaze-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow: 0 0 8px rgba(255, 92, 53, 0.6);
+}
+
+.shop__gaze[data-tone='error'] {
+  border-color: rgba(255, 92, 53, 0.35);
+  color: var(--paper-dim);
+}
+
+.shop__gaze[data-tone='error'] .shop__gaze-dot {
+  background: #ff9a80;
+}
+
 .shop__stage {
   display: flex;
   flex: 1;
@@ -102,11 +150,22 @@
   background: #161618;
   box-shadow: 0 30px 60px -38px rgba(0, 0, 0, 0.9);
   transform: rotateY(calc((var(--i) - 1) * 12deg)) translateY(calc(var(--i) * 8px));
-  transition: transform 0.3s ease;
+  transition:
+    transform 0.3s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
 }
 
 .showroom__card:hover {
   transform: rotateY(calc((var(--i) - 1) * 12deg)) translateY(calc(var(--i) * 8px - 8px));
+}
+
+.showroom__card[data-gazed='true'] {
+  border-color: rgba(255, 92, 53, 0.7);
+  box-shadow:
+    0 0 0 1px rgba(255, 92, 53, 0.3),
+    0 34px 70px -34px rgba(255, 92, 53, 0.4);
+  transform: rotateY(calc((var(--i) - 1) * 12deg)) translateY(calc(var(--i) * 8px - 12px));
 }
 
 .showroom__art {

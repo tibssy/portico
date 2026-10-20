@@ -41,6 +41,7 @@ export function DeviceCheckPage() {
     phase,
     stream,
     error,
+    calibration,
     request,
     requestAudioOnly,
     continueWithoutMedia,
@@ -52,6 +53,8 @@ export function DeviceCheckPage() {
   const requesting = phase === 'requesting'
   const hasVideo = Boolean(stream?.getVideoTracks().length)
   const hasAudio = Boolean(stream?.getAudioTracks().length)
+  const calibrated = calibration !== null
+  const needsCalibration = !coarse && hasVideo && !calibrated
   const denied = error?.code === 'denied'
   const canRetry = !error || error.canRetry
 
@@ -65,6 +68,11 @@ export function DeviceCheckPage() {
   }
 
   const enter = () => {
+    if (needsCalibration) {
+      navigate('/calibrate')
+      return
+    }
+
     markEntered()
     navigate('/shop')
   }
@@ -171,13 +179,25 @@ export function DeviceCheckPage() {
 
             <StatusRow
               label="Head tracking"
-              value={coarse ? 'Touch mode' : 'Calibration next'}
-              tone="muted"
+              value={
+                coarse
+                  ? 'Touch mode'
+                  : hasVideo
+                    ? calibrated
+                      ? 'Calibrated'
+                      : 'Calibration next'
+                    : 'Camera off'
+              }
+              tone={calibrated ? 'ready' : 'muted'}
             >
               <p className="status-row__note">
                 {coarse
                   ? 'Swipe and voice replace head tracking on small screens.'
-                  : 'A five-point calibration comes after device access.'}
+                  : calibrated
+                    ? 'Five-point calibration is complete. You can recalibrate from the shop.'
+                    : hasVideo
+                      ? 'A five-point calibration comes next, right after this step.'
+                      : 'Head tracking needs the camera.'}
               </p>
             </StatusRow>
 
@@ -208,7 +228,9 @@ export function DeviceCheckPage() {
                   type="button"
                   onClick={enter}
                 >
-                  Enter the shop
+                  {needsCalibration
+                    ? 'Calibrate head tracking'
+                    : 'Enter the shop'}
                   <ArrowIcon />
                 </button>
 

@@ -1,0 +1,59 @@
+.gaze-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  width: 34px;
+  height: 34px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  will-change: transform;
+}
+
+.gaze-cursor[data-visible='true'] {
+  opacity: 1;
+}
+
+.gaze-cursor__ring {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(255, 92, 53, 0.8);
+  border-radius: 50%;
+  box-shadow:
+    0 0 20px rgba(255, 92, 53, 0.22),
+    inset 0 0 12px rgba(255, 92, 53, 0.14);
+}
+
+.gaze-cursor__dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow: 0 0 10px rgba(255, 92, 53, 0.9);
+  transform: translate(-50%, -50%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .gaze-cursor[data-visible='true'] .gaze-cursor__ring {
+    animation: gaze-pulse 1.8s ease-out infinite;
+  }
+}
+
+@keyframes gaze-pulse {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.78);
+  }
+  70% {
+    opacity: 0;
+    transform: scale(1.45);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.45);
+  }
+}
