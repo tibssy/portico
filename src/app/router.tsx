@@ -8,29 +8,35 @@ import { RequireSession } from '../features/session/RequireSession.tsx'
 import { CalibratePage } from '../features/tracking/CalibratePage.tsx'
 import { RequireCamera } from '../features/tracking/RequireCamera.tsx'
 
-export const router = createBrowserRouter([
+export const router = createBrowserRouter(
+  [
+    {
+      element: <RootLayout />,
+      children: [
+        { index: true, element: <LandingPage /> },
+        { path: 'check', element: <DeviceCheckPage /> },
+        {
+          path: 'calibrate',
+          element: (
+            <RequireCamera>
+              <CalibratePage />
+            </RequireCamera>
+          ),
+        },
+        {
+          path: 'shop',
+          element: (
+            <RequireSession>
+              <ShopPage />
+            </RequireSession>
+          ),
+        },
+        { path: '*', element: <NotFoundPage /> },
+      ],
+    },
+  ],
   {
-    element: <RootLayout />,
-    children: [
-      { index: true, element: <LandingPage /> },
-      { path: 'check', element: <DeviceCheckPage /> },
-      {
-        path: 'calibrate',
-        element: (
-          <RequireCamera>
-            <CalibratePage />
-          </RequireCamera>
-        ),
-      },
-      {
-        path: 'shop',
-        element: (
-          <RequireSession>
-            <ShopPage />
-          </RequireSession>
-        ),
-      },
-      { path: '*', element: <NotFoundPage /> },
-    ],
+    // Vite's BASE_URL is "/" locally and "/portico/" on GitHub Pages.
+    basename: import.meta.env.BASE_URL.replace(/\/$/, '') || '/',
   },
-])
+)

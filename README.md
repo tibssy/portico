@@ -2,6 +2,8 @@
 
 An experimental storefront you can browse with your head and voice.
 
+**Live:** [tibssy.github.io/portico](https://tibssy.github.io/portico/)
+
 - **Look** — head-pose estimation from the webcam brings a product to the centre of a curved carousel.
 - **Speak** — an on-device speech model (Parakeet Redux) transcribes requests without uploading audio.
 - **Discover** — a shop assistant appears when you linger, with the product you are looking at in context.
@@ -32,6 +34,10 @@ Open http://localhost:5173. Camera and microphone access requires HTTPS or `loca
 npm run build   # tsc -b && vite build
 npm run lint    # oxlint
 ```
+
+## Deploy
+
+Pushing to `main` builds and deploys the app to GitHub Pages via `.github/workflows/deploy.yml`. The workflow sets `BASE_PATH=/<repository>/`; local builds stay at the origin root. The build also writes a `404.html` app shell so deep links such as `/portico/shop` boot the router instead of returning a bare 404.
 
 ## Routes
 
