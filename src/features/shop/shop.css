@@ -1,3 +1,9 @@
+@property --dwell-sweep {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
 .shop {
   display: flex;
   flex: 1;
@@ -202,10 +208,10 @@
   box-shadow: 0 24px 50px -38px rgba(0, 0, 0, 0.9);
   scroll-margin-top: 90px;
   transition:
-    transform 0.55s cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 0.45s ease,
-    background-color 0.45s ease,
-    box-shadow 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+    transform 1.1s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.9s ease,
+    background-color 0.9s ease,
+    box-shadow 1.1s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .showroom__card:focus-visible {
@@ -248,82 +254,44 @@
   box-shadow: 0 24px 50px -38px rgba(0, 0, 0, 0.9);
 }
 
-.showroom__dwell {
+.showroom__card::after {
+  content: '';
   position: absolute;
   z-index: 3;
-  top: 50%;
-  left: 50%;
-  width: 46px;
-  height: 46px;
+  inset: 0;
+  padding: 2px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from 180deg at 50% 100%,
+    var(--signal) 0deg,
+    var(--signal) var(--dwell-sweep),
+    transparent var(--dwell-sweep)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
   opacity: 0;
   pointer-events: none;
-  transform: translate(-50%, -50%);
   transition: opacity 0.3s ease;
 }
 
-.showroom__dwell[data-visible='true'] {
+.showroom__card[data-dwelling='true']::after {
   opacity: 1;
+  animation: showroom-edge-dwell var(--dwell-ms, 1800ms) linear forwards;
 }
 
-.showroom__dwell::before {
-  content: '';
-  position: absolute;
-  inset: -7px;
-  border-radius: 50%;
-  background: rgba(10, 10, 11, 0.36);
-  box-shadow: 0 0 0 1px rgba(255, 92, 53, 0.08);
-  backdrop-filter: blur(3px);
-}
-
-.showroom__dwell svg {
-  position: relative;
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-
-.showroom__dwell-track,
-.showroom__dwell-progress {
-  fill: none;
-  stroke-width: 2;
-}
-
-.showroom__dwell-track {
-  stroke: rgba(255, 92, 53, 0.22);
-}
-
-.showroom__dwell-progress {
-  stroke: var(--signal);
-  stroke-linecap: round;
-  stroke-dasharray: 119.38;
-  stroke-dashoffset: 119.38;
-  filter: drop-shadow(0 0 5px rgba(255, 92, 53, 0.6));
-}
-
-.showroom__dwell[data-visible='true'] .showroom__dwell-progress {
-  animation: showroom-dwell var(--dwell-ms, 1000ms) linear forwards;
-}
-
-.showroom__dwell-dot {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--signal);
-  box-shadow: 0 0 10px rgba(255, 92, 53, 0.85);
-  transform: translate(-50%, -50%);
-}
-
-@keyframes showroom-dwell {
+@keyframes showroom-edge-dwell {
   from {
-    stroke-dashoffset: 119.38;
+    --dwell-sweep: 0deg;
   }
 
   to {
-    stroke-dashoffset: 0;
+    --dwell-sweep: 360deg;
   }
 }
 
@@ -734,16 +702,16 @@
   .shop__intro,
   .shop__footer,
   .showroom__card,
-  .showroom__dwell,
+  .showroom__card::after,
   .product-expanded,
   .product-expanded__close {
     transition: none;
     animation: none;
   }
 
-  .showroom__dwell[data-visible='true'] .showroom__dwell-progress {
+  .showroom__card[data-dwelling='true']::after {
     animation: none;
-    stroke-dashoffset: 0;
+    --dwell-sweep: 360deg;
   }
 
   .showroom__card:hover,

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Brand } from '../../components/Brand.tsx'
 import { ArrowIcon } from '../../components/Icons.tsx'
@@ -140,7 +141,7 @@ const PRODUCTS: Product[] = [
   },
 ]
 
-const DWELL_MS = 1000
+const DWELL_MS = 1800
 const LOOK_AWAY_MS = 1500
 const PANEL_ARM_MS = 1000
 const DWELL_CLOSE_PAUSE_MS = 700
@@ -385,6 +386,7 @@ export function ShopPage() {
       className="shop"
       data-expanded={selected ? 'open' : 'closed'}
       data-gaze={gazeTracking ? 'true' : 'false'}
+      style={{ '--dwell-ms': `${DWELL_MS}ms` } as CSSProperties}
     >
       <header className="shop__bar">
         <Brand />
@@ -486,6 +488,7 @@ export function ShopPage() {
                   }}
                   data-gaze-card={selected ? undefined : product.name}
                   data-selected={selected?.name === product.name}
+                  data-dwelling={dwelling ? 'true' : undefined}
                   tabIndex={selected ? -1 : undefined}
                   aria-expanded={selected?.name === product.name}
                   aria-controls={
@@ -502,29 +505,6 @@ export function ShopPage() {
                   <span className="showroom__meta">
                     <span>{product.name}</span>
                     <span>{product.price}</span>
-                  </span>
-                  <span
-                    className="showroom__dwell"
-                    data-visible={dwelling ? 'true' : undefined}
-                    aria-hidden="true"
-                  >
-                    <svg viewBox="0 0 44 44" aria-hidden="true">
-                      <circle
-                        className="showroom__dwell-track"
-                        cx="22"
-                        cy="22"
-                        r="19"
-                      />
-                      <circle
-                        className="showroom__dwell-progress"
-                        cx="22"
-                        cy="22"
-                        r="19"
-                        transform="rotate(-90 22 22)"
-                        style={{ animationDuration: `${DWELL_MS}ms` }}
-                      />
-                    </svg>
-                    <span className="showroom__dwell-dot" />
                   </span>
                 </button>
               </li>
