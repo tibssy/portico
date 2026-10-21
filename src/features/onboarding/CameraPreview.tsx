@@ -64,7 +64,7 @@ export function CameraPreview({
       )}
 
       <span className="camera-frame__hint">
-        {coarse ? 'Voice only' : 'Head-pose sensor'}
+        {coarse ? 'Voice only' : 'Head + eye sensor'}
       </span>
     </div>
   )

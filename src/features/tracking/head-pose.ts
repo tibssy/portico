@@ -7,6 +7,12 @@ export interface HeadPose {
   pitch: number
   /** Head tilt in radians. */
   roll: number
+  /** Raw eye-in-head rotation in radians. */
+  eyeYaw: number
+  /** Raw eye-in-head rotation in radians. */
+  eyePitch: number
+  /** How much the iris estimate contributes, from 0 to 1. */
+  irisConfidence: number
 }
 
 export interface CalibrationPoint {
@@ -14,6 +20,11 @@ export interface CalibrationPoint {
   targetY: number
   yaw: number
   pitch: number
+  /** Raw iris-derived eye angle at the calibration target. */
+  eyeYaw: number
+  eyePitch: number
+  /** Iris availability while this target was sampled, from 0 to 1. */
+  irisConfidence: number
 }
 
 export interface HeadCalibration {
@@ -27,6 +38,18 @@ export interface HeadCalibration {
   sensitivityY: number
   /** Cursor filtering: 0 = snappy, 0.5 = default, 1 = steady. */
   cursorSmoothing: number
+  /** 1 enables the iris yaw contribution after calibration; 0 disables it. */
+  irisYawSign: number
+  /** 1 enables the iris pitch contribution after calibration; 0 disables it. */
+  irisPitchSign: number
+  /** Eye angles at the centre target, removed so head-only fallback is neutral. */
+  irisYawCenter: number
+  irisPitchCenter: number
+  /** Head-only fit used when the iris signal fades out. */
+  headYawSlope: number
+  headYawOffset: number
+  headPitchSlope: number
+  headPitchOffset: number
   rmseX: number
   rmseY: number
   createdAt: number
@@ -36,6 +59,9 @@ export interface ScreenPoint {
   x: number
   y: number
 }
+
+/** Fixed blend weight for the eye-in-head signal once it is calibrated. */
+export const IRIS_GAZE_WEIGHT = 0.85
 
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
@@ -92,7 +118,7 @@ export function poseFromMatrix(data: ArrayLike<number>): HeadPose | null {
       ? Math.atan2(r10, r00)
       : Math.atan2(-r01, r11)
 
-  return { yaw, pitch, roll }
+  return { yaw, pitch, roll, eyeYaw: 0, eyePitch: 0, irisConfidence: 0 }
 }
 
 interface LinearFit {
@@ -155,49 +181,132 @@ export function median(values: number[]): number {
     : (sorted[middle - 1] + sorted[middle]) / 2
 }
 
+function span(values: number[]): number {
+  return Math.max(...values) - Math.min(...values)
+}
+
 /**
- * Fit screen coordinates from five (or more) target/pose pairs. A linear fit
- * per axis is enough for head orientation and tolerates asymmetric ranges.
- * Returns null when the movement or the fit is too weak to be useful.
+ * Fit screen coordinates from five (or more) target/pose pairs. The head and
+ * eye signals share one linear axis. MediaPipe's head-pose axes and the
+ * eye-local iris axes have the same orientation, so a positive eye angle adds
+ * to a positive head angle; an axis is enabled only when the eyes moved enough
+ * to contribute and when it does not make the fit worse. Returns null when the
+ * movement or the fit is too weak to be useful.
  */
 export function fitCalibration(
   points: CalibrationPoint[],
 ): HeadCalibration | null {
   if (points.length < 5) return null
 
-  const xFit = linearFit(
-    points.map((point) => point.yaw),
-    points.map((point) => point.targetX),
+  const headYaw = points.map((point) => point.yaw)
+  const headPitch = points.map((point) => point.pitch)
+  const targetsX = points.map((point) => point.targetX)
+  const targetsY = points.map((point) => point.targetY)
+
+  // Use the centre target as the neutral eye position. Removing this offset
+  // means a missing iris does not shift the cursor away from the head-only
+  // position, and the large natural bias of the vertical iris signal is not
+  // mistaken for looking far up or down.
+  const centrePoint = points.reduce((best, point) => {
+    const distance =
+      (point.targetX - 0.5) ** 2 + (point.targetY - 0.5) ** 2
+    const bestDistance =
+      (best.targetX - 0.5) ** 2 + (best.targetY - 0.5) ** 2
+    return distance < bestDistance ? point : best
+  })
+  const validIris = points.filter((point) => point.irisConfidence > 0)
+  const irisYawCenter =
+    centrePoint.irisConfidence > 0
+      ? centrePoint.eyeYaw
+      : median(validIris.map((point) => point.eyeYaw))
+  const irisPitchCenter =
+    centrePoint.irisConfidence > 0
+      ? centrePoint.eyePitch
+      : median(validIris.map((point) => point.eyePitch))
+
+  const eyeYaw = points.map(
+    (point) =>
+      (point.eyeYaw - irisYawCenter) * point.irisConfidence,
   )
-  const yFit = linearFit(
-    points.map((point) => point.pitch),
-    points.map((point) => point.targetY),
+  const eyePitch = points.map(
+    (point) =>
+      (point.eyePitch - irisPitchCenter) * point.irisConfidence,
   )
 
-  if (!xFit || !yFit) return null
+  const headXFit = linearFit(headYaw, targetsX)
+  const headYFit = linearFit(headPitch, targetsY)
+  if (!headXFit || !headYFit) return null
 
-  const yawSpan =
-    Math.max(...points.map((point) => point.yaw)) -
-    Math.min(...points.map((point) => point.yaw))
-  const pitchSpan =
-    Math.max(...points.map((point) => point.pitch)) -
-    Math.min(...points.map((point) => point.pitch))
+  const yawSpan = span(headYaw)
+  const pitchSpan = span(headPitch)
 
   // Roughly 4.5 degrees of yaw and 3.5 degrees of pitch. Less than that is
   // usually sensor jitter, and the mapping would be unstable.
   if (yawSpan < 0.08 || pitchSpan < 0.06) return null
-  if (xFit.rmse > 0.16 || yFit.rmse > 0.16) return null
+
+  // The landmark axes are already aligned: iris movement to image-right and
+  // head yaw to image-right both increase, and looking up decreases both
+  // pitch angles. Only enable an axis once the eyes actually moved enough for
+  // the contribution to be meaningful.
+  let irisYawSign = span(eyeYaw) > 0.02 ? 1 : 0
+  let irisPitchSign = span(eyePitch) > 0.02 ? 1 : 0
+
+  const fitWithIris = () => {
+    const combinedYaw = points.map(
+      (point, index) =>
+        point.yaw +
+        eyeYaw[index] * irisYawSign * IRIS_GAZE_WEIGHT,
+    )
+    const combinedPitch = points.map(
+      (point, index) =>
+        point.pitch +
+        eyePitch[index] * irisPitchSign * IRIS_GAZE_WEIGHT,
+    )
+
+    return {
+      yaw: span(combinedYaw),
+      pitch: span(combinedPitch),
+      x: linearFit(combinedYaw, targetsX),
+      y: linearFit(combinedPitch, targetsY),
+    }
+  }
+
+  let combined = fitWithIris()
+  if (!combined.x || !combined.y) return null
+
+  // Do not let noisy iris landmarks degrade an already-good head fit.
+  if (combined.x.rmse > headXFit.rmse + 0.02) {
+    irisYawSign = 0
+    combined = fitWithIris()
+    if (!combined.x || !combined.y) return null
+  }
+  if (combined.y.rmse > headYFit.rmse + 0.02) {
+    irisPitchSign = 0
+    combined = fitWithIris()
+  }
+
+  if (!combined.x || !combined.y) return null
+  if (combined.yaw < 0.08 || combined.pitch < 0.06) return null
+  if (combined.x.rmse > 0.16 || combined.y.rmse > 0.16) return null
 
   return {
-    yawSlope: xFit.slope,
-    yawOffset: xFit.offset,
-    pitchSlope: yFit.slope,
-    pitchOffset: yFit.offset,
+    yawSlope: combined.x.slope,
+    yawOffset: combined.x.offset,
+    pitchSlope: combined.y.slope,
+    pitchOffset: combined.y.offset,
     sensitivityX: 1,
     sensitivityY: 1,
     cursorSmoothing: 0.5,
-    rmseX: xFit.rmse,
-    rmseY: yFit.rmse,
+    irisYawSign,
+    irisPitchSign,
+    irisYawCenter,
+    irisPitchCenter,
+    headYawSlope: headXFit.slope,
+    headYawOffset: headXFit.offset,
+    headPitchSlope: headYFit.slope,
+    headPitchOffset: headYFit.offset,
+    rmseX: combined.x.rmse,
+    rmseY: combined.y.rmse,
     createdAt: Date.now(),
   }
 }
@@ -206,11 +315,35 @@ export function mapPose(
   pose: HeadPose,
   calibration: HeadCalibration,
 ): ScreenPoint {
-  // The fit maps the calibrated head range to the full viewport. Sensitivity
-  // scales that motion around the centre, so a lower value means the visitor
-  // turns a little further to reach the edges.
-  const rawX = pose.yaw * calibration.yawSlope + calibration.yawOffset
-  const rawY = pose.pitch * calibration.pitchSlope + calibration.pitchOffset
+  // The fit maps the calibrated head and eye range to the full viewport.
+  // Sensitivity scales that motion around the centre, so a lower value means
+  // the visitor turns or glances a little further to reach the edges.
+  const irisConfidence = clamp01(pose.irisConfidence)
+  const eyeYaw =
+    calibration.irisYawSign !== 0
+      ? (pose.eyeYaw - calibration.irisYawCenter) *
+        calibration.irisYawSign *
+        IRIS_GAZE_WEIGHT
+      : 0
+  const eyePitch =
+    calibration.irisPitchSign !== 0
+      ? (pose.eyePitch - calibration.irisPitchCenter) *
+        calibration.irisPitchSign *
+        IRIS_GAZE_WEIGHT
+      : 0
+  const hybridX =
+    (pose.yaw + eyeYaw) * calibration.yawSlope + calibration.yawOffset
+  const hybridY =
+    (pose.pitch + eyePitch) * calibration.pitchSlope +
+    calibration.pitchOffset
+  const headX =
+    pose.yaw * calibration.headYawSlope + calibration.headYawOffset
+  const headY =
+    pose.pitch * calibration.headPitchSlope + calibration.headPitchOffset
+  // Fade between the head-only fit and the blended fit as iris confidence
+  // changes, so a blink or a missing iris never strands the cursor.
+  const rawX = hybridX * irisConfidence + headX * (1 - irisConfidence)
+  const rawY = hybridY * irisConfidence + headY * (1 - irisConfidence)
 
   return {
     x: clamp01(0.5 + (rawX - 0.5) * calibration.sensitivityX),

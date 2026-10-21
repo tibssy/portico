@@ -27,6 +27,7 @@ const SETTLE_MS = 650
 const SAMPLE_MS = 900
 const SAMPLE_INTERVAL_MS = 40
 const MIN_SAMPLES = 8
+const MIN_IRIS_SAMPLES = 4
 
 function SensorPreview({ stream }: { stream: MediaStream | null }) {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -56,7 +57,7 @@ function SensorPreview({ stream }: { stream: MediaStream | null }) {
         <span aria-hidden="true" />
         Live
       </span>
-      <span className="calibrate__camera-hint">Head-pose sensor</span>
+      <span className="calibrate__camera-hint">Head + eye sensor</span>
     </div>
   )
 }
@@ -140,6 +141,23 @@ export function CalibratePage() {
           targetY: TARGETS[targetIndex].y,
           yaw: median(samples.map((pose) => pose.yaw)),
           pitch: median(samples.map((pose) => pose.pitch)),
+          eyeYaw: 0,
+          eyePitch: 0,
+          irisConfidence: 0,
+        }
+        const irisSamples = samples.filter(
+          (pose) => pose.irisConfidence >= 0.35,
+        )
+        if (irisSamples.length >= MIN_IRIS_SAMPLES) {
+          nextPoint.eyeYaw = median(
+            irisSamples.map((pose) => pose.eyeYaw),
+          )
+          nextPoint.eyePitch = median(
+            irisSamples.map((pose) => pose.eyePitch),
+          )
+          nextPoint.irisConfidence = median(
+            irisSamples.map((pose) => pose.irisConfidence),
+          )
         }
         const nextPoints = [...pointsRef.current, nextPoint]
         pointsRef.current = nextPoints
@@ -157,7 +175,7 @@ export function CalibratePage() {
           setTargetIndex(0)
           setStage('ready')
           setNotice(
-            'The fit was too noisy. Try once more and turn your head a little further toward each dot.',
+            'The fit was too noisy. Try once more, look toward each dot, and let your head follow naturally.',
           )
           return
         }
@@ -273,8 +291,8 @@ export function CalibratePage() {
               </p>
               <p>
                 {collecting && tracker.faceVisible
-                  ? 'Hold still — sampling your head pose.'
-                  : 'Turn your head toward the dot.'}
+                  ? 'Hold your gaze — sampling head and eye position.'
+                  : 'Look toward the dot and let your head follow naturally.'}
               </p>
 
               {!tracker.faceVisible && (
@@ -346,10 +364,10 @@ export function CalibratePage() {
               {sensorError
                 ? 'The camera is live, but the face model could not load. Retry the sensor, or continue with a pointer.'
                 : sensorLoading
-                  ? 'The head tracker loads once and stays on this device. This can take a few seconds on the first visit.'
+                  ? 'The gaze tracker loads once and stays on this device. This can take a few seconds on the first visit.'
                   : !tracker.faceVisible
                     ? 'Sit a comfortable distance from the camera. The calibration starts once your face is visible.'
-                    : 'Five dots appear, one at a time. Turn your head toward each dot and hold for a moment. Keep your shoulders relaxed and stay in the frame.'}
+                    : 'Five dots appear, one at a time. Look toward each dot and let your head follow naturally; you do not need to turn far. Keep your shoulders relaxed and stay in the frame.'}
             </p>
 
             <div className="calibrate__preview">
@@ -408,7 +426,7 @@ export function CalibratePage() {
                   disabled={!canStart}
                 >
                   {sensorLoading
-                    ? 'Loading head tracker…'
+                    ? 'Loading gaze tracker…'
                     : !tracker.faceVisible
                       ? 'Waiting for your face'
                       : 'Start five-point calibration'}
@@ -451,9 +469,9 @@ export function CalibratePage() {
               </h1>
 
               <p className="calibrate__lede">
-                Move your head to test the cursor. Sensitivity sets how far a
-                head turn reaches. Noise damping filters small tracker jitter
-                while quick head movements stay responsive.
+                Move your head and eyes to test the cursor. Sensitivity sets
+                how far a head turn or glance reaches. Noise damping filters
+                small tracker jitter while quick movements stay responsive.
               </p>
 
               <div className="calibrate__sensitivity">
@@ -530,7 +548,7 @@ export function CalibratePage() {
 
                 <p className="calibrate__slider-hint">
                   Try each corner of the screen. Raise damping if the cursor
-                  shivers while you hold still; quick head movements stay
+                  shivers while you hold still; quick movements stay
                   responsive.
                 </p>
               </div>
@@ -569,7 +587,7 @@ export function CalibratePage() {
 
               <p className="calibrate__fine">
                 <CameraIcon className="icon" />
-                The camera stays on for head tracking in the shop.
+                The camera stays on for head and eye tracking in the shop.
               </p>
             </section>
           </>

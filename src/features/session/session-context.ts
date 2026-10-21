@@ -25,7 +25,7 @@ export interface MediaSessionValue {
   error: MediaError | null
   /** True once the visitor has entered the shop this session. */
   entered: boolean
-  /** Head-pose to screen mapping. Null until calibration succeeds. */
+  /** Head and eye pose to screen mapping. Null until calibration succeeds. */
   calibration: HeadCalibration | null
   request: (options?: { video?: boolean }) => Promise<void>
   requestAudioOnly: () => Promise<void>

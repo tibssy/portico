@@ -5,15 +5,16 @@ import { CursorController, cursorConfigFor } from './cursor-controller.ts'
 import './gaze-cursor.css'
 
 const STICKY_MARGIN = 10
-/** Small head movements inside a card are ignored so dwell can finish. */
+/** Small gaze movements inside a card are ignored so dwell can finish. */
 const CARD_DEADZONE_PX = 20
 /** Attribute applied to the element currently under the gaze. */
 const GAZE_HOVER_ATTRIBUTE = 'data-gaze-hover'
 
 /**
- * Tracks a smoothed gaze position from the calibrated head pose and hit-tests
- * the page. It highlights the card or button under the gaze, reports target
- * changes, and fires an optional dwell callback once the gaze has rested.
+ * Tracks a smoothed gaze position from the calibrated head and eye pose and
+ * hit-tests the page. It highlights the card or button under the gaze, reports
+ * target changes, and fires an optional dwell callback once the gaze has
+ * rested.
  */
 export function GazeCursor({
   poseRef,

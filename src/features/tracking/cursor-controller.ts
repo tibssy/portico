@@ -34,7 +34,7 @@ export interface CursorControllerConfig {
 }
 
 /**
- * Tuned for a 30 Hz head-pose stream at 60 fps render. X follows quickly; Y
+ * Tuned for a 30 Hz gaze stream at 60 fps render. X follows quickly; Y
  * carries more damping because pitch is the noisier axis on most webcams.
  */
 export const DEFAULT_CURSOR_CONFIG: CursorControllerConfig = {
@@ -61,10 +61,10 @@ export const DEFAULT_CURSOR_CONFIG: CursorControllerConfig = {
 /**
  * Build a controller configuration from the calibration slider. The middle
  * of the range (0.5) keeps the defaults; lower values react faster, higher
- * values low-pass the pose and widen the deadband to quiet small jitter.
+ * values low-pass the gaze and widen the deadband to quiet small jitter.
  *
  * The speed-adaptive term is the important part: it shortens the input filter
- * when the head is moving deliberately, so heavy damping does not turn into
+ * when the gaze is moving deliberately, so heavy damping does not turn into
  * input lag. Small movements and resting jitter still use the full filter.
  */
 export function cursorConfigFor(smoothing: number): CursorControllerConfig {

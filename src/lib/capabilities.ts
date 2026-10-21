@@ -5,7 +5,7 @@ export interface Capabilities {
   camera: boolean
   microphone: boolean
   webgpu: boolean
-  /** Head-pose navigation is a desktop interaction. */
+  /** Gaze navigation is a desktop interaction. */
   headTracking: boolean
   speechRecognition: boolean
   touchMode: boolean

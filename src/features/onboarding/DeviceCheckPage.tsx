@@ -151,7 +151,7 @@ export function DeviceCheckPage() {
             <p className="check__lede">
               {coarse
                 ? 'Portico will ask for the microphone only. On a phone the shop is voice- and touch-driven — no camera needed.'
-                : 'Portico uses the camera to follow the direction of your head and the microphone to hear what you ask. Both stay on this device.'}
+                : 'Portico uses the camera to follow the direction of your head and eyes and the microphone to hear what you ask. Both stay on this device.'}
             </p>
           </div>
 
@@ -161,7 +161,7 @@ export function DeviceCheckPage() {
                 <p className="status-row__note">
                   {denied
                     ? 'Allow the camera from the address bar, then try again.'
-                    : 'Used for head-pose tracking. Frames are never stored.'}
+                    : 'Used for head and eye tracking. Frames are never stored.'}
                 </p>
               )}
             </StatusRow>
@@ -178,7 +178,7 @@ export function DeviceCheckPage() {
             </StatusRow>
 
             <StatusRow
-              label="Head tracking"
+              label="Gaze tracking"
               value={
                 coarse
                   ? 'Touch mode'
@@ -192,12 +192,12 @@ export function DeviceCheckPage() {
             >
               <p className="status-row__note">
                 {coarse
-                  ? 'Swipe and voice replace head tracking on small screens.'
+                  ? 'Swipe and voice replace gaze tracking on small screens.'
                   : calibrated
                     ? 'Five-point calibration is complete. You can recalibrate from the shop.'
                     : hasVideo
                       ? 'A five-point calibration comes next, right after this step.'
-                      : 'Head tracking needs the camera.'}
+                      : 'Gaze tracking needs the camera.'}
               </p>
             </StatusRow>
 
@@ -229,7 +229,7 @@ export function DeviceCheckPage() {
                   onClick={enter}
                 >
                   {needsCalibration
-                    ? 'Calibrate head tracking'
+                    ? 'Calibrate gaze tracking'
                     : 'Enter the shop'}
                   <ArrowIcon />
                 </button>

@@ -29,7 +29,7 @@ const KEYWORDS = [
   'Discover',
   'On-device',
   'No recording',
-  'Head tracking',
+  'Gaze tracking',
   'Voice',
 ]
 
@@ -136,7 +136,7 @@ export function LandingPage() {
       'Ready',
       'Off',
       capabilities?.camera
-        ? 'A camera is available for head tracking.'
+        ? 'A camera is available for head and eye tracking.'
         : 'No camera is available, or this is a touch device.',
     ),
     chip(
@@ -158,12 +158,12 @@ export function LandingPage() {
         : 'Speech will fall back to CPU inference.',
     ),
     chip(
-      'Head tracking',
+      'Gaze tracking',
       Boolean(capabilities?.headTracking),
       'Desktop',
       'Touch',
       capabilities?.headTracking
-        ? 'Head-pose navigation is available on this device.'
+        ? 'Head and eye navigation is available on this device.'
         : 'Touch devices browse with swipe and voice.',
     ),
   ]
@@ -197,8 +197,8 @@ export function LandingPage() {
               Ask out loud.
             </h1>
             <p className="hero__lede">
-              Portico is a shop that follows your attention. Turn your head
-              toward something you like and it comes to the centre. Say what
+              Portico is a shop that follows your attention. Look toward
+              something you like and let your head follow naturally. Say what
               you are looking for and the shop answers.
             </p>
 
@@ -221,7 +221,7 @@ export function LandingPage() {
               {touch ? (
                 <>
                   <MicIcon className="icon" />
-                  Microphone only on this device. Head tracking is
+                  Microphone only on this device. Gaze tracking is
                   desktop-only.
                 </>
               ) : (
@@ -271,8 +271,8 @@ export function LandingPage() {
               Three senses, <em>one storefront.</em>
             </h2>
             <p>
-              The camera reads where your head is pointing. Frames are
-              discarded as soon as they are read. Voice stays local.
+              The camera reads where your head and eyes are pointing. Frames
+              are discarded as soon as they are read. Voice stays local.
             </p>
           </div>
 
@@ -284,10 +284,11 @@ export function LandingPage() {
               </div>
               <h3>Look</h3>
               <p>
-                Turn toward a product and the curved carousel brings it to the
-                centre. No cursor, no scrolling, no clicking through grids.
+                Look toward a product and turn naturally. The curved carousel
+                brings it to the centre. No cursor, no scrolling, no clicking
+                through grids.
               </p>
-              <span className="step__tag">Head-pose tracking</span>
+              <span className="step__tag">Head + eye tracking</span>
             </article>
             <article className="step">
               <div className="step__top">
@@ -325,7 +326,7 @@ export function LandingPage() {
           </div>
           <div className="privacy__body">
             <p>
-              Video never leaves your browser. Head-pose estimation happens
+              Video never leaves your browser. Head and eye tracking happens
               locally, frame by frame, and the frames are discarded as soon as
               they are read. No accounts, no recordings, no uploads.
             </p>
@@ -379,7 +380,7 @@ export function LandingPage() {
           <Brand />
           <p>An experiment in gaze and voice. Built with React, Vite, MediaPipe.</p>
           <p className="site-footer__fine">
-            Speech model: Parakeet Redux · CC BY 4.0 · Head tracking:
+            Speech model: Parakeet Redux · CC BY 4.0 · Gaze tracking:
             MediaPipe · Apache 2.0
           </p>
         </div>

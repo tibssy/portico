@@ -3,6 +3,11 @@ import type { FaceLandmarker } from '@mediapipe/tasks-vision'
 import { loadFaceLandmarker } from './face-landmarker.ts'
 import { poseFromMatrix } from './head-pose.ts'
 import type { HeadPose } from './head-pose.ts'
+import { irisFromLandmarks } from './iris-gaze.ts'
+import type { IrisGaze } from './iris-gaze.ts'
+
+const IRIS_HOLD_MS = 420
+const IRIS_FULL_HOLD_MS = 140
 
 export type TrackerStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -41,6 +46,7 @@ export function useHeadPose(
     let lastVideoTime = -1
     let lastTimestamp = 0
     let lastSeenAt = 0
+    let lastIris: (IrisGaze & { at: number }) | null = null
 
     const start = async () => {
       setStatus('loading')
@@ -78,10 +84,43 @@ export function useHeadPose(
               const matrix = result.facialTransformationMatrixes?.[0]?.data
               const pose = matrix ? poseFromMatrix(matrix) : null
               const now = performance.now()
-              const seen = Boolean(result.faceLandmarks?.length) && pose !== null
+              const iris = pose
+                ? irisFromLandmarks(result.faceLandmarks?.[0])
+                : null
+              const seen =
+                Boolean(result.faceLandmarks?.length) && pose !== null
 
-              if (seen) {
+              if (seen && pose) {
                 lastSeenAt = now
+                let irisSample: IrisGaze | null = iris
+
+                if (iris) {
+                  lastIris = { ...iris, at: now }
+                } else if (
+                  lastIris &&
+                  now - lastIris.at < IRIS_HOLD_MS
+                ) {
+                  // Keep full confidence briefly through a blink, then fade
+                  // toward the head-only fit instead of snapping.
+                  const age = now - lastIris.at
+                  const fade =
+                    1 -
+                    Math.max(0, age - IRIS_FULL_HOLD_MS) /
+                      (IRIS_HOLD_MS - IRIS_FULL_HOLD_MS)
+                  irisSample = {
+                    ...lastIris,
+                    confidence: lastIris.confidence * Math.max(0, fade),
+                  }
+                } else {
+                  lastIris = null
+                }
+
+                if (irisSample) {
+                  pose.eyeYaw = irisSample.eyeYaw
+                  pose.eyePitch = irisSample.eyePitch
+                  pose.irisConfidence = irisSample.confidence
+                }
+
                 poseRef.current = pose
 
                 if (!visibleRef.current) {
@@ -96,6 +135,7 @@ export function useHeadPose(
                   setFaceVisible(false)
                 }
                 poseRef.current = null
+                lastIris = null
               }
             } catch {
               // A single bad frame should not tear down the tracker.
@@ -109,16 +149,17 @@ export function useHeadPose(
       } catch (cause) {
         if (cancelled) return
 
-        console.error('Head tracking failed', cause)
+        console.error('Gaze tracking failed', cause)
         setStatus('error')
         setError(
           cause instanceof Error
             ? cause.message
-            : 'The head tracker could not start.',
+            : 'The gaze tracker could not start.',
         )
         setFaceVisible(false)
         poseRef.current = null
         visibleRef.current = false
+        lastIris = null
       }
     }
 
@@ -136,6 +177,7 @@ export function useHeadPose(
 
       poseRef.current = null
       visibleRef.current = false
+      lastIris = null
     }
   }, [active, stream, attempt])
 

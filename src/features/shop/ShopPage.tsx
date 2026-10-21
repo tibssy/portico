@@ -215,7 +215,7 @@ export function ShopPage() {
       ? 'Pointer mode'
       : mode === 'voice'
         ? 'Voice mode'
-        : 'Head-pose mode'
+        : 'Gaze mode'
 
   const selectProduct = useCallback(
     (product: Product) => {
@@ -564,8 +564,8 @@ export function ShopPage() {
 
           <p className="shop__lede">
             {gazeActive
-              ? 'The whole room, laid out at once. Look at a piece and hold for a moment; the tile holds steady while you dwell, so small head movements do not shake the selection.'
-              : 'The whole room, laid out at once. Click any piece to open its details. Calibrate the camera to browse with your head.'}
+              ? 'The whole room, laid out at once. Look at a piece and hold for a moment; the tile holds steady while you dwell, so small head or eye movements do not shake the selection.'
+              : 'The whole room, laid out at once. Click any piece to open its details. Calibrate the camera to browse with your gaze.'}
           </p>
 
           {gazeActive && (
@@ -576,9 +576,9 @@ export function ShopPage() {
             >
               <span className="shop__gaze-dot" aria-hidden="true" />
               {tracker.status === 'error' ? (
-                'Head tracking paused. Pointer browsing still works.'
+                'Gaze tracking paused. Pointer browsing still works.'
               ) : tracker.status === 'loading' ? (
-                'Starting head tracking…'
+                'Starting gaze tracking…'
               ) : !tracker.faceVisible ? (
                 'Face not detected · line up with the camera'
               ) : actionLabel ? (

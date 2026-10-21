@@ -35,7 +35,7 @@ async function createLandmarker(): Promise<FaceLandmarker> {
     return await Landmarker.createFromOptions(fileset, options)
   } catch {
     // WebGL is not available in every browser or virtual machine. The CPU
-    // delegate is slower but keeps head tracking working.
+    // delegate is slower but keeps gaze tracking working.
     return Landmarker.createFromOptions(fileset, {
       ...options,
       baseOptions: {
