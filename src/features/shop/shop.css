@@ -325,34 +325,11 @@
   background: linear-gradient(150deg, #c3cbcf, #7f8b91 55%, #343c41);
 }
 
-.showroom__art > span {
-  position: absolute;
-  bottom: 14%;
-  left: 50%;
-  width: 54%;
-  aspect-ratio: 0.7;
-  transform: translateX(-50%);
-  border-radius: 46% 46% 38% 38% / 54% 54% 24% 24%;
-  background: linear-gradient(
-    160deg,
-    rgba(255, 255, 255, 0.34),
-    rgba(0, 0, 0, 0.22)
-  );
-}
-
-/* A little variation so a wall of fifteen pieces still reads as objects. */
-.showroom__item:nth-child(3n + 2) .showroom__art > span {
-  bottom: 18%;
-  width: 62%;
-  aspect-ratio: 1;
-  border-radius: 24%;
-}
-
-.showroom__item:nth-child(3n) .showroom__art > span {
-  bottom: 22%;
-  width: 48%;
-  aspect-ratio: 1.25;
-  border-radius: 12px;
+.showroom__art > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .showroom__meta {
@@ -479,11 +456,6 @@
   min-height: 0;
   aspect-ratio: auto;
   border-radius: 14px;
-}
-
-.product-expanded__art > span {
-  bottom: 9%;
-  width: 38%;
 }
 
 .product-expanded__body {

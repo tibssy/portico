@@ -141,6 +141,14 @@ const PRODUCTS: Product[] = [
   },
 ]
 
+/**
+ * Product photos live in `public/products` and are named after the product,
+ * for example `Arc-Lamp.jpg`. BASE_URL keeps them working under /portico/.
+ */
+function productImage(name: string): string {
+  return `${import.meta.env.BASE_URL}products/${name.split(' ').join('-')}.jpg`
+}
+
 const DWELL_DELAY_MS = 1000
 const DWELL_SWEEP_MS = 1200
 const DWELL_TOTAL_MS = DWELL_DELAY_MS + DWELL_SWEEP_MS
@@ -634,7 +642,12 @@ export function ShopPage() {
                   onClick={() => selectProduct(product)}
                 >
                   <span className="showroom__art" data-tone={product.tone}>
-                    <span aria-hidden="true" />
+                    <img
+                      src={productImage(product.name)}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                    />
                   </span>
                   <span className="showroom__meta">
                     <span>{product.name}</span>
@@ -702,7 +715,11 @@ export function ShopPage() {
               className="showroom__art product-expanded__art"
               data-tone={selected.tone}
             >
-              <span aria-hidden="true" />
+              <img
+                src={productImage(selected.name)}
+                alt=""
+                decoding="async"
+              />
             </div>
 
             <div className="product-expanded__body">
