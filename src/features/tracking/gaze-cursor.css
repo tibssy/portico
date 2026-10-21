@@ -48,12 +48,10 @@
     opacity: 0.9;
     transform: scale(0.78);
   }
-  70% {
-    opacity: 0;
-    transform: scale(1.45);
-  }
+
+  70%,
   100% {
-    opacity: 0;
-    transform: scale(1.45);
+    opacity: 0.45;
+    transform: scale(1.2);
   }
 }

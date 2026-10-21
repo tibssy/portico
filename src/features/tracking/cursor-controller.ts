@@ -21,6 +21,11 @@ export interface CursorAxisConfig {
   integralLimit: number
   /** Errors below this are ignored so the cursor settles instead of buzzing. */
   deadband: number
+  /**
+   * Extra cutoff applied while the target is moving quickly. This keeps a
+   * heavily damped cursor from lagging behind a deliberate head turn.
+   */
+  speedAdaptive: number
 }
 
 export interface CursorControllerConfig {
@@ -40,6 +45,7 @@ export const DEFAULT_CURSOR_CONFIG: CursorControllerConfig = {
     maxSpeed: 3.6,
     integralLimit: 0.15,
     deadband: 0.0016,
+    speedAdaptive: 0,
   },
   y: {
     gains: { kp: 9.2, ki: 0.45, kd: 0.62 },
@@ -48,13 +54,56 @@ export const DEFAULT_CURSOR_CONFIG: CursorControllerConfig = {
     maxSpeed: 2.4,
     integralLimit: 0.1,
     deadband: 0.0026,
+    speedAdaptive: 0,
   },
+}
+
+/**
+ * Build a controller configuration from the calibration slider. The middle
+ * of the range (0.5) keeps the defaults; lower values react faster, higher
+ * values low-pass the pose and widen the deadband to quiet small jitter.
+ *
+ * The speed-adaptive term is the important part: it shortens the input filter
+ * when the head is moving deliberately, so heavy damping does not turn into
+ * input lag. Small movements and resting jitter still use the full filter.
+ */
+export function cursorConfigFor(smoothing: number): CursorControllerConfig {
+  const value = clamp(Number.isFinite(smoothing) ? smoothing : 0.5, 0, 1)
+  const timeScale = 0.4 * 2.5 ** (2 * value)
+  const deadbandScale = 0.5 + value
+  const speedAdaptive = 1.5 + value * 2.5
+
+  return {
+    x: {
+      ...DEFAULT_CURSOR_CONFIG.x,
+      inputTimeConstant:
+        DEFAULT_CURSOR_CONFIG.x.inputTimeConstant * timeScale,
+      derivativeTimeConstant:
+        DEFAULT_CURSOR_CONFIG.x.derivativeTimeConstant * timeScale,
+      deadband: DEFAULT_CURSOR_CONFIG.x.deadband * deadbandScale,
+      speedAdaptive,
+    },
+    y: {
+      ...DEFAULT_CURSOR_CONFIG.y,
+      inputTimeConstant:
+        DEFAULT_CURSOR_CONFIG.y.inputTimeConstant * timeScale,
+      derivativeTimeConstant:
+        DEFAULT_CURSOR_CONFIG.y.derivativeTimeConstant * timeScale,
+      deadband: DEFAULT_CURSOR_CONFIG.y.deadband * deadbandScale,
+      speedAdaptive,
+    },
+  }
 }
 
 function timeAlpha(dt: number, tau: number): number {
   if (tau <= 0) return 1
   return 1 - Math.exp(-dt / tau)
 }
+
+/** Target speeds below this are treated as resting jitter, not intention. */
+const SPEED_BOOST_FLOOR = 0.18
+/** Speed above the floor that reaches the maximum adaptive cutoff. */
+const SPEED_BOOST_RANGE = 1.1
 
 class PidAxis {
   private value = 0.5
@@ -83,7 +132,14 @@ class PidAxis {
       return this.value
     }
 
-    this.target += (target - this.target) * timeAlpha(dt, config.inputTimeConstant)
+    const rawDelta = target - this.target
+    const targetSpeed = dt > 0 ? Math.abs(rawDelta) / dt : 0
+    const speedBoost = clamp01(
+      (targetSpeed - SPEED_BOOST_FLOOR) / SPEED_BOOST_RANGE,
+    )
+    const tau =
+      config.inputTimeConstant / (1 + speedBoost * config.speedAdaptive)
+    this.target += rawDelta * timeAlpha(dt, tau)
 
     let error = this.target - this.value
     if (Math.abs(error) < config.deadband) error = 0

@@ -25,6 +25,8 @@ export interface HeadCalibration {
   sensitivityX: number
   /** Vertical gain around the screen centre. 1 = the calibrated range. */
   sensitivityY: number
+  /** Cursor filtering: 0 = snappy, 0.5 = default, 1 = steady. */
+  cursorSmoothing: number
   rmseX: number
   rmseY: number
   createdAt: number
@@ -193,6 +195,7 @@ export function fitCalibration(
     pitchOffset: yFit.offset,
     sensitivityX: 1,
     sensitivityY: 1,
+    cursorSmoothing: 0.5,
     rmseX: xFit.rmse,
     rmseY: yFit.rmse,
     createdAt: Date.now(),

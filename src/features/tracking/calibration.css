@@ -437,6 +437,7 @@
   left: clamp(1rem, 3vw, 2.5rem);
   width: min(390px, calc(100% - 2rem));
   max-height: calc(100svh - 6.5rem);
+  overflow-y: auto;
   transform: translateY(-50%);
   text-align: left;
 }
@@ -513,6 +514,17 @@
   font-size: 0.7rem;
   font-weight: 500;
   color: var(--signal);
+}
+
+.calibrate__slider-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -0.1rem;
+  font-family: var(--mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .calibrate__slider input[type='range'] {

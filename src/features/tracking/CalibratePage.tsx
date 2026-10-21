@@ -79,6 +79,7 @@ export function CalibratePage() {
   const [result, setResult] = useState<HeadCalibration | null>(null)
   const [sensitivityX, setSensitivityX] = useState(100)
   const [sensitivityY, setSensitivityY] = useState(100)
+  const [cursorSmoothing, setCursorSmoothing] = useState(50)
   const [runId, setRunId] = useState(0)
   const pointsRef = useRef<CalibrationPoint[]>([])
   const samplesRef = useRef<HeadPose[]>([])
@@ -90,9 +91,10 @@ export function CalibratePage() {
             ...result,
             sensitivityX: sensitivityX / 100,
             sensitivityY: sensitivityY / 100,
+            cursorSmoothing: cursorSmoothing / 100,
           }
         : null,
-    [result, sensitivityX, sensitivityY],
+    [result, sensitivityX, sensitivityY, cursorSmoothing],
   )
 
   const target = TARGETS[targetIndex]
@@ -163,6 +165,7 @@ export function CalibratePage() {
         setResult(calibration)
         setSensitivityX(100)
         setSensitivityY(100)
+        setCursorSmoothing(50)
         setStage('tuning')
       }, SAMPLE_MS)
     }, SETTLE_MS)
@@ -182,7 +185,7 @@ export function CalibratePage() {
     runId,
   ])
 
-  // Keep the session calibration in step with the sensitivity sliders so a
+  // Keep the session calibration in step with the tuning sliders so a
   // browser-back into the shop cannot use the untuned mapping.
   useEffect(() => {
     if (stage !== 'tuning' || !tuned) return
@@ -198,6 +201,7 @@ export function CalibratePage() {
     setResult(null)
     setSensitivityX(100)
     setSensitivityY(100)
+    setCursorSmoothing(50)
     setRunId((value) => value + 1)
     setStage('running')
   }
@@ -217,9 +221,10 @@ export function CalibratePage() {
     navigate('/shop')
   }
 
-  const resetSensitivity = () => {
+  const resetTuning = () => {
     setSensitivityX(100)
     setSensitivityY(100)
+    setCursorSmoothing(50)
   }
 
   const usePointer = () => {
@@ -429,12 +434,16 @@ export function CalibratePage() {
 
         {stage === 'tuning' && tuned && (
           <>
-            <GazeCursor poseRef={tracker.poseRef} calibration={tuned} />
+            <GazeCursor
+              poseRef={tracker.poseRef}
+              calibration={tuned}
+              showCursor
+            />
 
             <section className="calibrate__panel calibrate__panel--result calibrate__panel--tuning">
               <p className="eyebrow">
                 <span className="pulse-dot" aria-hidden="true" />
-                Five points · sensitivity
+                Five points · cursor feel
               </p>
 
               <h1>
@@ -442,19 +451,23 @@ export function CalibratePage() {
               </h1>
 
               <p className="calibrate__lede">
-                Move your head to test the cursor. If either axis feels too
-                quick, lower its sensitivity. Lower values mean a slightly
-                bigger head turn reaches the screen edges.
+                Move your head to test the cursor. Sensitivity sets how far a
+                head turn reaches. Noise damping filters small tracker jitter
+                while quick head movements stay responsive.
               </p>
 
               <div className="calibrate__sensitivity">
                 <div className="calibrate__sensitivity-head">
-                  <span>Cursor sensitivity</span>
+                  <span>Cursor feel</span>
                   <button
                     className="calibrate__reset"
                     type="button"
-                    onClick={resetSensitivity}
-                    disabled={sensitivityX === 100 && sensitivityY === 100}
+                    onClick={resetTuning}
+                    disabled={
+                      sensitivityX === 100 &&
+                      sensitivityY === 100 &&
+                      cursorSmoothing === 50
+                    }
                   >
                     Reset
                   </button>
@@ -494,9 +507,31 @@ export function CalibratePage() {
                   />
                 </label>
 
+                <label className="calibrate__slider">
+                  <span className="calibrate__slider-label">
+                    <span>Noise damping</span>
+                    <strong>{cursorSmoothing}%</strong>
+                  </span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={cursorSmoothing}
+                    onChange={(event) =>
+                      setCursorSmoothing(Number(event.target.value))
+                    }
+                  />
+                  <span className="calibrate__slider-scale">
+                    <span>Snappy</span>
+                    <span>Steady</span>
+                  </span>
+                </label>
+
                 <p className="calibrate__slider-hint">
-                  Try each corner of the screen. If you cannot reach an edge,
-                  raise that axis.
+                  Try each corner of the screen. Raise damping if the cursor
+                  shivers while you hold still; quick head movements stay
+                  responsive.
                 </p>
               </div>
 
