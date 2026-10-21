@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Brand } from '../../components/Brand.tsx'
@@ -141,15 +141,23 @@ const PRODUCTS: Product[] = [
   },
 ]
 
-const DWELL_MS = 1800
+const DWELL_DELAY_MS = 2000
+const DWELL_SWEEP_MS = 1800
+const DWELL_TOTAL_MS = DWELL_DELAY_MS + DWELL_SWEEP_MS
 const LOOK_AWAY_MS = 1500
 const PANEL_ARM_MS = 1000
+const PANEL_OPEN_MS = 540
+const PANEL_CLOSE_MS = 420
 const DWELL_CLOSE_PAUSE_MS = 700
 
 const ACTION_LABELS: Record<string, string> = {
   close: 'close the piece',
   recalibrate: 'recalibrate the camera',
   leave: 'leave the showroom',
+}
+
+function prefersReducedMotion() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 export function ShopPage() {
@@ -165,10 +173,13 @@ export function ShopPage() {
   const [dwellPaused, setDwellPaused] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
   const closeRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLElement>(null)
   const gridRef = useRef<HTMLUListElement>(null)
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const sourceRectRef = useRef<DOMRect | null>(null)
+  const openAnimationRef = useRef<Animation | null>(null)
+  const closeAnimationRef = useRef<Animation | null>(null)
   const dwellPauseTimer = useRef<number | null>(null)
-  const closeTimer = useRef<number | null>(null)
 
   const selectedIndex = selected
     ? PRODUCTS.findIndex((product) => product.name === selected.name)
@@ -210,10 +221,13 @@ export function ShopPage() {
     (product: Product) => {
       if (selected?.name === product.name && !isClosing) return
 
-      if (closeTimer.current !== null) {
-        window.clearTimeout(closeTimer.current)
-        closeTimer.current = null
-      }
+      const sourceCard = cardRefs.current[product.name]
+      sourceRectRef.current = sourceCard?.getBoundingClientRect() ?? null
+      openAnimationRef.current?.cancel()
+      openAnimationRef.current = null
+      closeAnimationRef.current?.cancel()
+      closeAnimationRef.current = null
+
       if (dwellPauseTimer.current !== null) {
         window.clearTimeout(dwellPauseTimer.current)
         dwellPauseTimer.current = null
@@ -255,14 +269,130 @@ export function ShopPage() {
     setIsClosing(true)
     setDwellPaused(true)
 
-    if (closeTimer.current !== null) {
-      window.clearTimeout(closeTimer.current)
-    }
-    closeTimer.current = window.setTimeout(() => {
-      closeTimer.current = null
+    const panel = panelRef.current
+    const source = cardRefs.current[selected.name]
+
+    if (!panel || !source || prefersReducedMotion()) {
+      openAnimationRef.current?.cancel()
+      openAnimationRef.current = null
       finalizeClose()
-    }, 220)
+      return
+    }
+
+    // If the panel is still opening, start the close from its current visual
+    // rect instead of snapping back to full size first.
+    const startRect = panel.getBoundingClientRect()
+    openAnimationRef.current?.cancel()
+    openAnimationRef.current = null
+
+    const panelRect = panel.getBoundingClientRect()
+    const sourceRect = source.getBoundingClientRect()
+    if (
+      !panelRect.width ||
+      !panelRect.height ||
+      !sourceRect.width ||
+      !sourceRect.height
+    ) {
+      finalizeClose()
+      return
+    }
+
+    const startDx =
+      startRect.left +
+      startRect.width / 2 -
+      (panelRect.left + panelRect.width / 2)
+    const startDy =
+      startRect.top +
+      startRect.height / 2 -
+      (panelRect.top + panelRect.height / 2)
+    const startScaleX = startRect.width / panelRect.width
+    const startScaleY = startRect.height / panelRect.height
+    const dx =
+      sourceRect.left +
+      sourceRect.width / 2 -
+      (panelRect.left + panelRect.width / 2)
+    const dy =
+      sourceRect.top +
+      sourceRect.height / 2 -
+      (panelRect.top + panelRect.height / 2)
+    const scaleX = sourceRect.width / panelRect.width
+    const scaleY = sourceRect.height / panelRect.height
+
+    try {
+      const animation = panel.animate(
+        [
+          {
+            transform: `translate(${startDx}px, ${startDy}px) scale(${startScaleX}, ${startScaleY})`,
+          },
+          {
+            transform: `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`,
+          },
+        ],
+        {
+          duration: PANEL_CLOSE_MS,
+          easing: 'cubic-bezier(0.4, 0, 1, 1)',
+          fill: 'forwards',
+        },
+      )
+
+      closeAnimationRef.current = animation
+      animation.finished
+        .then(() => {
+          if (closeAnimationRef.current === animation) {
+            closeAnimationRef.current = null
+          }
+          finalizeClose()
+        })
+        .catch(() => {})
+    } catch {
+      finalizeClose()
+    }
   }, [selected, isClosing, finalizeClose])
+
+  useLayoutEffect(() => {
+    if (!selected || isClosing) return
+
+    // Measure the selected tile and the laid-out panel, then animate between
+    // them so the panel grows out of the tile rather than the viewport center.
+    const panel = panelRef.current
+    const sourceRect = sourceRectRef.current
+    if (!panel || !sourceRect || prefersReducedMotion()) return
+
+    const panelRect = panel.getBoundingClientRect()
+    if (!panelRect.width || !panelRect.height) return
+
+    const dx =
+      sourceRect.left +
+      sourceRect.width / 2 -
+      (panelRect.left + panelRect.width / 2)
+    const dy =
+      sourceRect.top +
+      sourceRect.height / 2 -
+      (panelRect.top + panelRect.height / 2)
+    const scaleX = sourceRect.width / panelRect.width
+    const scaleY = sourceRect.height / panelRect.height
+
+    const animation = panel.animate(
+      [
+        {
+          transform: `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`,
+        },
+        { transform: 'translate(0, 0) scale(1, 1)' },
+      ],
+      {
+        duration: PANEL_OPEN_MS,
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+      },
+    )
+
+    openAnimationRef.current = animation
+    return () => {
+      animation.cancel()
+      if (openAnimationRef.current === animation) {
+        openAnimationRef.current = null
+      }
+    }
+  }, [selected, isClosing])
 
   const handleDwell = useCallback(
     (target: string) => {
@@ -338,9 +468,8 @@ export function ShopPage() {
       if (dwellPauseTimer.current !== null) {
         window.clearTimeout(dwellPauseTimer.current)
       }
-      if (closeTimer.current !== null) {
-        window.clearTimeout(closeTimer.current)
-      }
+      openAnimationRef.current?.cancel()
+      closeAnimationRef.current?.cancel()
     }
   }, [])
 
@@ -386,7 +515,12 @@ export function ShopPage() {
       className="shop"
       data-expanded={selected ? 'open' : 'closed'}
       data-gaze={gazeTracking ? 'true' : 'false'}
-      style={{ '--dwell-ms': `${DWELL_MS}ms` } as CSSProperties}
+      style={
+        {
+          '--dwell-sweep-ms': `${DWELL_SWEEP_MS}ms`,
+          '--dwell-delay-ms': `${DWELL_DELAY_MS}ms`,
+        } as CSSProperties
+      }
     >
       <header className="shop__bar">
         <Brand />
@@ -517,7 +651,7 @@ export function ShopPage() {
             poseRef={tracker.poseRef}
             calibration={calibration}
             onTargetChange={handleGazeTarget}
-            dwellMs={DWELL_MS}
+            dwellMs={DWELL_TOTAL_MS}
             dwellEnabled={!dwellPaused}
             dwellFilter={dwellFilter}
             onDwell={handleDwell}
@@ -548,6 +682,7 @@ export function ShopPage() {
           <article
             className="product-expanded"
             id="product-details"
+            ref={panelRef}
             data-gaze-panel="true"
             data-closing={isClosing ? 'true' : undefined}
             aria-labelledby="product-expanded-title"

@@ -229,7 +229,7 @@
 
 @media (hover: hover) {
   .shop[data-gaze='false'] .showroom__card:hover {
-    transform: translateY(-4px) scale(1.045);
+    transform: translateY(-4px) scale(1.08);
     border-color: rgba(255, 92, 53, 0.45);
     box-shadow: 0 28px 56px -36px rgba(0, 0, 0, 0.95);
   }
@@ -238,7 +238,7 @@
 .showroom__card[data-gaze-hover='true'] {
   position: relative;
   z-index: 2;
-  transform: scale(1.045);
+  transform: scale(1.08);
   border-color: rgba(255, 92, 53, 0.8);
   background: #1a191a;
   box-shadow:
@@ -262,7 +262,7 @@
   padding: 2px;
   border-radius: inherit;
   background: conic-gradient(
-    from 180deg at 50% 100%,
+    from 180deg at 50% 50%,
     var(--signal) 0deg,
     var(--signal) var(--dwell-sweep),
     transparent var(--dwell-sweep)
@@ -282,7 +282,8 @@
 
 .showroom__card[data-dwelling='true']::after {
   opacity: 1;
-  animation: showroom-edge-dwell var(--dwell-ms, 1800ms) linear forwards;
+  animation: showroom-edge-dwell var(--dwell-sweep-ms, 1800ms) linear
+    var(--dwell-delay-ms, 0ms) forwards;
 }
 
 @keyframes showroom-edge-dwell {
@@ -428,12 +429,10 @@
     0 45px 110px -40px rgba(0, 0, 0, 0.98);
   pointer-events: auto;
   transform-origin: center;
-  animation: product-expanded-in 0.54s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .product-expanded[data-closing='true'] {
   pointer-events: none;
-  animation: product-expanded-out 0.22s cubic-bezier(0.4, 0, 1, 1) both;
 }
 
 .product-expanded__close {
@@ -464,7 +463,7 @@
 
 .product-expanded__close:hover,
 .product-expanded__close[data-gaze-hover='true'] {
-  transform: scale(1.08);
+  transform: scale(1.045);
   border-color: rgba(255, 92, 53, 0.7);
   background: rgba(255, 92, 53, 0.12);
   color: var(--signal);
@@ -553,30 +552,6 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
-}
-
-@keyframes product-expanded-in {
-  from {
-    opacity: 0;
-    transform: translateY(20px) scaleX(0.86) scaleY(0.96);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes product-expanded-out {
-  from {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-
-  to {
-    opacity: 0;
-    transform: translateY(10px) scaleX(0.94) scaleY(0.97);
-  }
 }
 
 @media (max-width: 1279px) {
