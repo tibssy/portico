@@ -707,6 +707,7 @@ export function ShopPage() {
               data-gaze-action="close"
               onClick={closePanel}
               aria-label="Close product details"
+              data-gaze-expand="16"
             >
               ×
             </button>

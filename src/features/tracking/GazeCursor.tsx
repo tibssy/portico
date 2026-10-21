@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { mapPose } from './head-pose.ts'
 import type { HeadCalibration, HeadPose } from './head-pose.ts'
 import { CursorController, cursorConfigFor } from './cursor-controller.ts'
+import { expandedGazeActionAt } from './gaze-target.ts'
 import './gaze-cursor.css'
 
 const STICKY_MARGIN = 10
@@ -116,6 +117,12 @@ export function GazeCursor({
       x: number,
       y: number,
     ): { target: string | null; element: HTMLElement | null } => {
+      // Gaze-only slop: a control can advertise a larger invisible target
+      // without changing its pointer hit area. Pick the nearest one when
+      // several overlap.
+      const expanded = expandedGazeActionAt(x, y)
+      if (expanded.target) return expanded
+
       const hit = document.elementFromPoint(x, y)
       if (!hit) return { target: null, element: null }
 
