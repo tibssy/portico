@@ -6,6 +6,7 @@ import { ArrowIcon } from '../../components/Icons.tsx'
 import { useMediaSession } from '../session/session-context.ts'
 import { useHeadPose } from '../tracking/useHeadPose.ts'
 import { GazeCursor } from '../tracking/GazeCursor.tsx'
+import type { ScrollDirection } from '../tracking/gaze-scroll.ts'
 import './shop.css'
 
 type Tone = 'sand' | 'clay' | 'moss' | 'dusk' | 'steel'
@@ -176,6 +177,7 @@ export function ShopPage() {
   const gazeActive = mode === 'full' && camera && calibration !== null
   const tracker = useHeadPose(stream, gazeActive)
   const [gazeTarget, setGazeTarget] = useState<string | null>(null)
+  const [gazeScroll, setGazeScroll] = useState<ScrollDirection | null>(null)
   const [selected, setSelected] = useState<Product | null>(null)
   const [panelArmed, setPanelArmed] = useState(false)
   const [dwellPaused, setDwellPaused] = useState(false)
@@ -668,6 +670,9 @@ export function ShopPage() {
             dwellEnabled={!dwellPaused}
             dwellFilter={dwellFilter}
             onDwell={handleDwell}
+            scrollEnabled={!selected && !isClosing}
+            scrollHeaderOffset={72}
+            onScrollChange={setGazeScroll}
           />
         )}
 
@@ -689,6 +694,19 @@ export function ShopPage() {
           </button>
         </div>
       </main>
+
+      <div
+        className="shop__scroll-cue"
+        data-direction="up"
+        data-visible={gazeScroll === 'up' ? 'true' : 'false'}
+        aria-hidden="true"
+      />
+      <div
+        className="shop__scroll-cue"
+        data-direction="down"
+        data-visible={gazeScroll === 'down' ? 'true' : 'false'}
+        aria-hidden="true"
+      />
 
       {selected && (
         <div className="product-expanded-layer">
