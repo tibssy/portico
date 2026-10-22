@@ -4,13 +4,14 @@ import { Brand } from '../../components/Brand.tsx'
 import { ArrowIcon, CameraIcon, LockIcon } from '../../components/Icons.tsx'
 import { useMediaSession } from '../session/session-context.ts'
 import { useHeadPose } from '../tracking/useHeadPose.ts'
-import { fitCalibration, median } from '../tracking/head-pose.ts'
+import { fitCalibration, median, poseSpread } from '../tracking/head-pose.ts'
 import type {
   CalibrationPoint,
   HeadCalibration,
   HeadPose,
 } from '../tracking/head-pose.ts'
 import { GazeCursor } from '../tracking/GazeCursor.tsx'
+import { hasLiveTrack } from '../../lib/media.ts'
 import './calibration.css'
 
 type Stage = 'ready' | 'running' | 'tuning'
@@ -28,6 +29,9 @@ const SAMPLE_MS = 900
 const SAMPLE_INTERVAL_MS = 40
 const MIN_SAMPLES = 8
 const MIN_IRIS_SAMPLES = 4
+/** About 2.9 degrees; a hold that moves more than this is retried. */
+const MAX_POINT_SPREAD = 0.05
+const MAX_POINT_RETRIES = 2
 
 function SensorPreview({ stream }: { stream: MediaStream | null }) {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -71,7 +75,7 @@ export function CalibratePage() {
     continueWithoutMedia,
     leave,
   } = useMediaSession()
-  const tracker = useHeadPose(stream, Boolean(stream?.getVideoTracks().length))
+  const tracker = useHeadPose(stream, hasLiveTrack(stream, 'video'))
 
   const [stage, setStage] = useState<Stage>('ready')
   const [targetIndex, setTargetIndex] = useState(0)
@@ -84,6 +88,7 @@ export function CalibratePage() {
   const [runId, setRunId] = useState(0)
   const pointsRef = useRef<CalibrationPoint[]>([])
   const samplesRef = useRef<HeadPose[]>([])
+  const pointAttemptsRef = useRef(0)
 
   const tuned = useMemo<HeadCalibration | null>(
     () =>
@@ -135,6 +140,31 @@ export function CalibratePage() {
           setRunId((value) => value + 1)
           return
         }
+
+        if (poseSpread(samples) > MAX_POINT_SPREAD) {
+          pointAttemptsRef.current += 1
+
+          if (pointAttemptsRef.current <= MAX_POINT_RETRIES) {
+            setNotice('That point moved too much. Hold steadier — retrying it…')
+            setRunId((value) => value + 1)
+            return
+          }
+
+          // Repeating the same point forever is worse than asking for a clean
+          // run. The per-point medians can look plausible even when the head
+          // was moving, so do not build a calibration from this sample set.
+          pointsRef.current = []
+          samplesRef.current = []
+          pointAttemptsRef.current = 0
+          setTargetIndex(0)
+          setStage('ready')
+          setNotice(
+            'The camera saw too much movement. Restart calibration, keep your head relaxed, and look toward each dot without rushing.',
+          )
+          return
+        }
+
+        pointAttemptsRef.current = 0
 
         const nextPoint: CalibrationPoint = {
           targetX: TARGETS[targetIndex].x,
@@ -213,6 +243,7 @@ export function CalibratePage() {
   const begin = () => {
     pointsRef.current = []
     samplesRef.current = []
+    pointAttemptsRef.current = 0
     setTargetIndex(0)
     setCollecting(false)
     setNotice(null)
@@ -227,6 +258,7 @@ export function CalibratePage() {
   const cancel = () => {
     pointsRef.current = []
     samplesRef.current = []
+    pointAttemptsRef.current = 0
     setTargetIndex(0)
     setCollecting(false)
     setStage('ready')

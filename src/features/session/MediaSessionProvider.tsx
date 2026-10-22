@@ -93,9 +93,18 @@ export function MediaSessionProvider({ children }: { children: ReactNode }) {
   const [entered, setEntered] = useState(false)
   const [calibration, setCalibrationState] =
     useState<HeadCalibration | null>(null)
+  const [cameraStopped, setCameraStopped] = useState(false)
   const streamRef = useRef<MediaStream | null>(null)
   const inFlight = useRef(false)
   const requestId = useRef(0)
+
+  const releaseStream = useCallback(() => {
+    const current = streamRef.current
+    // Clear the ref first so an `ended` event fired while stopping the tracks
+    // cannot be mistaken for an unexpected device loss.
+    streamRef.current = null
+    stopTracks(current)
+  }, [])
 
   const request = useCallback(
     async (options: { video?: boolean } = {}) => {
@@ -143,19 +152,19 @@ export function MediaSessionProvider({ children }: { children: ReactNode }) {
           return
         }
 
-        stopTracks(streamRef.current)
+        releaseStream()
         streamRef.current = nextStream
         setStream(nextStream)
         setMode(wantsVideo ? 'full' : 'voice')
         setCalibrationState(null)
+        setCameraStopped(false)
         setPhase('ready')
       } catch (cause) {
         if (id !== requestId.current) return
 
         // A retry replaces the previous stream. If the new request fails, do
         // not leave an older camera stream running behind an error screen.
-        stopTracks(streamRef.current)
-        streamRef.current = null
+        releaseStream()
         setStream(null)
         setError(toMediaError(cause, wantsVideo))
         setPhase('error')
@@ -163,7 +172,7 @@ export function MediaSessionProvider({ children }: { children: ReactNode }) {
         inFlight.current = false
       }
     },
-    [],
+    [releaseStream],
   )
 
   const requestAudioOnly = useCallback(
@@ -173,15 +182,15 @@ export function MediaSessionProvider({ children }: { children: ReactNode }) {
 
   const continueWithoutMedia = useCallback(() => {
     requestId.current += 1
-    stopTracks(streamRef.current)
-    streamRef.current = null
+    releaseStream()
     setStream(null)
     setError(null)
     setCalibrationState(null)
+    setCameraStopped(false)
     setMode('browse')
     setPhase('ready')
     setEntered(true)
-  }, [])
+  }, [releaseStream])
 
   const markEntered = useCallback(() => {
     setEntered(true)
@@ -193,26 +202,61 @@ export function MediaSessionProvider({ children }: { children: ReactNode }) {
 
   const leave = useCallback(() => {
     requestId.current += 1
-    stopTracks(streamRef.current)
-    streamRef.current = null
+    releaseStream()
     setStream(null)
     setError(null)
     setCalibrationState(null)
+    setCameraStopped(false)
     setPhase('idle')
     setMode('full')
     setEntered(false)
-  }, [])
+  }, [releaseStream])
 
+  // A camera can disappear while the stream object is still present: the
+  // browser keeps the ended track in `getVideoTracks()`. Listen for that and
+  // fall back to an honest pointer session with a reconnect prompt.
   useEffect(() => {
-    const release = () => stopTracks(streamRef.current)
+    if (!stream) return
 
-    window.addEventListener('pagehide', release)
+    const current = stream
+    const onEnded = (event: Event) => {
+      const track = event.target
+      if (!(track instanceof MediaStreamTrack) || track.kind !== 'video') {
+        return
+      }
+      if (streamRef.current !== current) return
+
+      releaseStream()
+      setStream(null)
+      setCalibrationState(null)
+      setCameraStopped(true)
+      setMode('browse')
+      setError({
+        code: 'unknown',
+        title: 'Camera disconnected',
+        detail:
+          'The camera stopped unexpectedly. Reconnect it to use gaze again, or keep browsing with a pointer.',
+        canRetry: true,
+      })
+      setPhase('error')
+    }
+
+    const tracks = current.getVideoTracks()
+    tracks.forEach((track) => track.addEventListener('ended', onEnded))
 
     return () => {
-      window.removeEventListener('pagehide', release)
-      release()
+      tracks.forEach((track) => track.removeEventListener('ended', onEnded))
     }
-  }, [])
+  }, [stream, releaseStream])
+
+  useEffect(() => {
+    window.addEventListener('pagehide', releaseStream)
+
+    return () => {
+      window.removeEventListener('pagehide', releaseStream)
+      releaseStream()
+    }
+  }, [releaseStream])
 
   const value = useMemo<MediaSessionValue>(
     () => ({
@@ -222,6 +266,7 @@ export function MediaSessionProvider({ children }: { children: ReactNode }) {
       error,
       entered,
       calibration,
+      cameraStopped,
       request,
       requestAudioOnly,
       continueWithoutMedia,
@@ -236,6 +281,7 @@ export function MediaSessionProvider({ children }: { children: ReactNode }) {
       error,
       entered,
       calibration,
+      cameraStopped,
       request,
       requestAudioOnly,
       continueWithoutMedia,

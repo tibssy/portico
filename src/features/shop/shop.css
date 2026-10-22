@@ -168,6 +168,34 @@
   color: var(--muted);
 }
 
+.shop__camera-lost {
+  display: flex;
+  max-width: min(100%, 760px);
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem 1rem;
+  margin-top: 1.15rem;
+  padding: 0.6rem 0.65rem 0.6rem 0.95rem;
+  border: 1px solid rgba(255, 92, 53, 0.35);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--signal) 8%, transparent);
+  color: var(--paper-dim);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  line-height: 1.55;
+  letter-spacing: 0.02em;
+  text-align: left;
+}
+
+.shop__camera-lost p {
+  flex: 1 1 22rem;
+}
+
+.shop__camera-lost .btn {
+  flex: none;
+}
+
 .shop__gaze {
   display: inline-flex;
   max-width: 100%;

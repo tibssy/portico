@@ -181,6 +181,41 @@ export function median(values: number[]): number {
     : (sorted[middle - 1] + sorted[middle]) / 2
 }
 
+function quantile(sorted: number[], fraction: number): number {
+  if (sorted.length === 0) return 0
+
+  const position = (sorted.length - 1) * fraction
+  const lower = Math.floor(position)
+  const upper = sorted[lower + 1]
+
+  if (upper === undefined) return sorted[lower]
+  return sorted[lower] + (upper - sorted[lower]) * (position - lower)
+}
+
+/** Interquartile range; ignores a few bad frames better than min/max. */
+export function interquartileRange(values: number[]): number {
+  if (values.length < 2) return 0
+
+  const sorted = [...values].sort((a, b) => a - b)
+  return quantile(sorted, 0.75) - quantile(sorted, 0.25)
+}
+
+/**
+ * Largest per-axis spread while a calibration point is held. A few outlier
+ * frames are ignored, so this measures whether the head was still moving
+ * rather than whether the detector produced one bad frame.
+ */
+export function poseSpread(
+  samples: Array<Pick<HeadPose, 'yaw' | 'pitch'>>,
+): number {
+  if (samples.length < 4) return Number.POSITIVE_INFINITY
+
+  return Math.max(
+    interquartileRange(samples.map((sample) => sample.yaw)),
+    interquartileRange(samples.map((sample) => sample.pitch)),
+  )
+}
+
 function span(values: number[]): number {
   return Math.max(...values) - Math.min(...values)
 }

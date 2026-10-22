@@ -27,6 +27,12 @@ export interface MediaSessionValue {
   entered: boolean
   /** Head and eye pose to screen mapping. Null until calibration succeeds. */
   calibration: HeadCalibration | null
+  /**
+   * True when a live camera track ended unexpectedly. The session falls back
+   * to pointer browsing; the flag drives a reconnect prompt and is cleared by
+   * a new request, an explicit pointer-only session, or leaving.
+   */
+  cameraStopped: boolean
   request: (options?: { video?: boolean }) => Promise<void>
   requestAudioOnly: () => Promise<void>
   continueWithoutMedia: () => void

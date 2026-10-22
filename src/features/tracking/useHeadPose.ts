@@ -5,6 +5,7 @@ import { poseFromMatrix } from './head-pose.ts'
 import type { HeadPose } from './head-pose.ts'
 import { irisFromLandmarks } from './iris-gaze.ts'
 import type { IrisGaze } from './iris-gaze.ts'
+import { hasLiveTrack } from '../../lib/media.ts'
 
 const IRIS_HOLD_MS = 420
 const IRIS_FULL_HOLD_MS = 140
@@ -30,7 +31,7 @@ export function useHeadPose(
   const [faceVisible, setFaceVisible] = useState(false)
   const [attempt, setAttempt] = useState(0)
 
-  const active = enabled && Boolean(stream?.getVideoTracks().length)
+  const active = enabled && hasLiveTrack(stream, 'video')
 
   const retry = useCallback(() => {
     setAttempt((value) => value + 1)

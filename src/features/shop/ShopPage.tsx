@@ -7,6 +7,7 @@ import { useMediaSession } from '../session/session-context.ts'
 import { useHeadPose } from '../tracking/useHeadPose.ts'
 import { GazeCursor } from '../tracking/GazeCursor.tsx'
 import type { ScrollDirection } from '../tracking/gaze-scroll.ts'
+import { hasLiveTrack } from '../../lib/media.ts'
 import './shop.css'
 
 type Tone = 'sand' | 'clay' | 'moss' | 'dusk' | 'steel'
@@ -171,9 +172,18 @@ function prefersReducedMotion() {
 
 export function ShopPage() {
   const navigate = useNavigate()
-  const { mode, stream, calibration, leave } = useMediaSession()
-  const camera = Boolean(stream?.getVideoTracks().length)
-  const microphone = Boolean(stream?.getAudioTracks().length)
+  const {
+    mode,
+    phase,
+    stream,
+    error,
+    calibration,
+    cameraStopped,
+    request,
+    leave,
+  } = useMediaSession()
+  const camera = hasLiveTrack(stream, 'video')
+  const microphone = hasLiveTrack(stream, 'audio')
   const gazeActive = mode === 'full' && camera && calibration !== null
   const tracker = useHeadPose(stream, gazeActive)
   const [gazeTarget, setGazeTarget] = useState<string | null>(null)
@@ -220,12 +230,17 @@ export function ShopPage() {
     navigate('/calibrate')
   }, [navigate])
 
+  const reconnectCamera = useCallback(() => {
+    if (phase === 'requesting') return
+    void request()
+  }, [phase, request])
+
   const modeLabel =
-    mode === 'browse'
-      ? 'Pointer mode'
-      : mode === 'voice'
-        ? 'Voice mode'
-        : 'Gaze mode'
+    mode === 'voice'
+      ? 'Voice mode'
+      : mode === 'full' && camera
+        ? 'Gaze mode'
+        : 'Pointer mode'
 
   const selectProduct = useCallback(
     (product: Product) => {
@@ -491,6 +506,47 @@ export function ShopPage() {
         return
       }
 
+      // The panel is modal while it is open. Keep Tab inside it so keyboard
+      // focus cannot wander into the grid behind the overlay.
+      if (event.key === 'Tab' && selected) {
+        const panel = panelRef.current
+        if (!panel) return
+
+        const focusable = Array.from(
+          panel.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ),
+        ).filter((element) => element.getClientRects().length > 0)
+
+        if (focusable.length === 0) {
+          event.preventDefault()
+          panel.focus()
+          return
+        }
+
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+        const active = document.activeElement
+
+        if (!panel.contains(active)) {
+          event.preventDefault()
+          first.focus()
+          return
+        }
+
+        if (event.shiftKey && active === first) {
+          event.preventDefault()
+          last.focus()
+          return
+        }
+
+        if (!event.shiftKey && active === last) {
+          event.preventDefault()
+          first.focus()
+          return
+        }
+      }
+
       if (!(event.target instanceof HTMLElement)) return
       const card = event.target.closest<HTMLElement>('[data-gaze-card]')
       if (!card || !gridRef.current) return
@@ -575,8 +631,30 @@ export function ShopPage() {
           <p className="shop__lede">
             {gazeActive
               ? 'The whole room, laid out at once. Look at a piece and hold for a moment; the tile holds steady while you dwell, so small head or eye movements do not shake the selection.'
-              : 'The whole room, laid out at once. Click any piece to open its details. Calibrate the camera to browse with your gaze.'}
+              : cameraStopped
+                ? 'The camera stopped, so gaze is off. Pointer browsing still works; reconnect when you are ready to use gaze again.'
+                : 'The whole room, laid out at once. Click any piece to open its details. Calibrate the camera to browse with your gaze.'}
           </p>
+
+          {cameraStopped && (
+            <div className="shop__camera-lost">
+              <p role="status">
+                {error
+                  ? `${error.title}. ${error.detail}`
+                  : 'Camera disconnected. Pointer browsing still works.'}
+              </p>
+              <button
+                className="btn btn--signal btn--small"
+                type="button"
+                onClick={reconnectCamera}
+                disabled={phase === 'requesting'}
+              >
+                {phase === 'requesting'
+                  ? 'Reconnecting camera…'
+                  : 'Reconnect camera'}
+              </button>
+            </div>
+          )}
 
           {gazeActive && (
             <p
@@ -714,9 +792,13 @@ export function ShopPage() {
             className="product-expanded"
             id="product-details"
             ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="product-expanded-title"
+            aria-describedby="product-expanded-copy"
+            tabIndex={-1}
             data-gaze-panel="true"
             data-closing={isClosing ? 'true' : undefined}
-            aria-labelledby="product-expanded-title"
           >
             <button
               className="product-expanded__close"
@@ -748,7 +830,12 @@ export function ShopPage() {
 
               <h2 id="product-expanded-title">{selected.name}</h2>
               <p className="product-expanded__price">{selected.price}</p>
-              <p className="product-expanded__copy">{selected.description}</p>
+              <p
+                className="product-expanded__copy"
+                id="product-expanded-copy"
+              >
+                {selected.description}
+              </p>
               <p className="product-expanded__spec">{selected.spec}</p>
 
               <p className="product-expanded__hint">

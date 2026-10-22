@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Brand } from '../../components/Brand.tsx'
 import { ArrowIcon, CameraIcon, MicIcon } from '../../components/Icons.tsx'
 import { isTouchMode } from '../../lib/capabilities.ts'
+import { hasLiveTrack } from '../../lib/media.ts'
 import { useMediaSession } from '../session/session-context.ts'
 import { CameraPreview } from './CameraPreview.tsx'
 import { MicMeter } from './MicMeter.tsx'
@@ -51,8 +52,8 @@ export function DeviceCheckPage() {
 
   const coarse = isTouchMode()
   const requesting = phase === 'requesting'
-  const hasVideo = Boolean(stream?.getVideoTracks().length)
-  const hasAudio = Boolean(stream?.getAudioTracks().length)
+  const hasVideo = hasLiveTrack(stream, 'video')
+  const hasAudio = hasLiveTrack(stream, 'audio')
   const calibrated = calibration !== null
   const needsCalibration = !coarse && hasVideo && !calibrated
   const denied = error?.code === 'denied'

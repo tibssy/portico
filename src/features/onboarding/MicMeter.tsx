@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react'
+import { hasLiveTrack } from '../../lib/media.ts'
 
 export function MicMeter({ stream }: { stream: MediaStream | null }) {
   const barRef = useRef<HTMLSpanElement>(null)
-  const active = Boolean(stream?.getAudioTracks().length)
+  const active = hasLiveTrack(stream, 'audio')
 
   useEffect(() => {
     if (!stream || !active) return

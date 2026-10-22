@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { hasLiveTrack } from '../../lib/media.ts'
 
 export function CameraPreview({
   stream,
@@ -10,7 +11,7 @@ export function CameraPreview({
   coarse: boolean
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const live = Boolean(stream?.getVideoTracks().length)
+  const live = hasLiveTrack(stream, 'video')
 
   useEffect(() => {
     const element = videoRef.current
