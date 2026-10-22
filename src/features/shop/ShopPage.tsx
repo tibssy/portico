@@ -170,6 +170,179 @@ function prefersReducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
+type PanelLayoutMode = 'columns' | 'rows'
+
+interface PanelLayout {
+  mode: PanelLayoutMode
+  size: number
+  tracks: string
+  gap: string
+}
+
+/**
+ * Read the panel's current grid layout. Desktop splits the panel into art and
+ * details columns; narrow layouts stack the two rows instead.
+ */
+function readPanelLayout(panel: HTMLElement): PanelLayout | null {
+  const style = getComputedStyle(panel)
+  const columns = style.gridTemplateColumns.trim()
+  const rows = style.gridTemplateRows.trim()
+  const columnCount = columns.split(/\s+/).filter(Boolean).length
+  const rowCount = rows.split(/\s+/).filter(Boolean).length
+  const paddingX =
+    Number.parseFloat(style.paddingLeft) +
+    Number.parseFloat(style.paddingRight)
+  const paddingY =
+    Number.parseFloat(style.paddingTop) +
+    Number.parseFloat(style.paddingBottom)
+
+  if (columnCount > 1) {
+    return {
+      mode: 'columns',
+      size: Math.max(0, panel.clientWidth - paddingX),
+      tracks: columns,
+      gap: style.columnGap,
+    }
+  }
+
+  if (rowCount > 1) {
+    return {
+      mode: 'rows',
+      size: Math.max(0, panel.clientHeight - paddingY),
+      tracks: rows,
+      gap: style.rowGap,
+    }
+  }
+
+  return null
+}
+
+/**
+ * A panel layout frame where the art owns the whole panel and the details
+ * track has no size. The body can overflow this track and is clipped by the
+ * panel, so the art keeps its shape while the text waits off to the side.
+ */
+function collapsedLayoutFrame(
+  layout: PanelLayout,
+  size: number,
+): Record<string, string> {
+  const tracks = `${size}px 0px`
+
+  return layout.mode === 'columns'
+    ? { gridTemplateColumns: tracks, columnGap: '0px' }
+    : { gridTemplateRows: tracks, rowGap: '0px' }
+}
+
+function expandedLayoutFrame(layout: PanelLayout): Record<string, string> {
+  return layout.mode === 'columns'
+    ? { gridTemplateColumns: layout.tracks, columnGap: layout.gap }
+    : { gridTemplateRows: layout.tracks, rowGap: layout.gap }
+}
+
+/**
+ * Hold the details text at its natural width while the column/row track
+ * closes. The panel clips the overflow, so the copy does not reflow frame by
+ * frame as it slides out of view.
+ */
+function pinExpandedBodyWidth(
+  panel: HTMLElement,
+  layout: PanelLayout | null,
+) {
+  if (!layout) return
+
+  const body = panel.querySelector<HTMLElement>('.product-expanded__body')
+  if (!body) return
+
+  const width = body.offsetWidth
+  if (width > 0) body.style.minWidth = `${width}px`
+}
+
+function clearExpandedBodyWidth(panel: HTMLElement | null) {
+  panel
+    ?.querySelector<HTMLElement>('.product-expanded__body')
+    ?.style.removeProperty('min-width')
+}
+
+interface PanelChrome {
+  width: number
+  height: number
+  paddingTop: number
+  paddingRight: number
+  paddingBottom: number
+  paddingLeft: number
+}
+
+/**
+ * The panel's start box is the source card, with its content box fitted to the
+ * card photo. That keeps the photo undistorted and lets the caption area sit in
+ * the extra padding below it.
+ */
+function collapsedPanelChrome(
+  panel: HTMLElement,
+  sourceRect: DOMRect,
+  sourceArtRect: DOMRect,
+): PanelChrome {
+  const style = getComputedStyle(panel)
+  const borderTop = Number.parseFloat(style.borderTopWidth)
+  const borderRight = Number.parseFloat(style.borderRightWidth)
+  const borderBottom = Number.parseFloat(style.borderBottomWidth)
+  const borderLeft = Number.parseFloat(style.borderLeftWidth)
+
+  return {
+    width: sourceRect.width,
+    height: sourceRect.height,
+    paddingTop: Math.max(
+      0,
+      sourceArtRect.top - sourceRect.top - borderTop,
+    ),
+    paddingRight: Math.max(
+      0,
+      sourceRect.right - sourceArtRect.right - borderRight,
+    ),
+    paddingBottom: Math.max(
+      0,
+      sourceRect.bottom - sourceArtRect.bottom - borderBottom,
+    ),
+    paddingLeft: Math.max(
+      0,
+      sourceArtRect.left - sourceRect.left - borderLeft,
+    ),
+  }
+}
+
+function panelChromeFrame(chrome: PanelChrome): Record<string, string> {
+  return {
+    width: `${chrome.width}px`,
+    height: `${chrome.height}px`,
+    padding: `${chrome.paddingTop}px ${chrome.paddingRight}px ${chrome.paddingBottom}px ${chrome.paddingLeft}px`,
+  }
+}
+
+function computedPaddingFrame(style: CSSStyleDeclaration): string {
+  return `${Number.parseFloat(style.paddingTop)}px ${Number.parseFloat(style.paddingRight)}px ${Number.parseFloat(style.paddingBottom)}px ${Number.parseFloat(style.paddingLeft)}px`
+}
+
+function animateDetailsOpacity(
+  details: HTMLElement | null,
+  from: number,
+  to: number,
+  duration: number,
+  easing: string,
+  fill?: 'none' | 'forwards',
+): Animation | null {
+  if (!details) return null
+
+  try {
+    return details.animate([{ opacity: from }, { opacity: to }], {
+      duration,
+      easing,
+      fill,
+    })
+  } catch {
+    return null
+  }
+}
+
 export function ShopPage() {
   const navigate = useNavigate()
   const {
@@ -197,8 +370,14 @@ export function ShopPage() {
   const gridRef = useRef<HTMLUListElement>(null)
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const sourceRectRef = useRef<DOMRect | null>(null)
+  const sourceArtRectRef = useRef<DOMRect | null>(null)
+  const sourceRadiusRef = useRef<string | null>(null)
+  const sourceShadowRef = useRef<string | null>(null)
+  const sourceBorderColorRef = useRef<string | null>(null)
+  const sourceBackgroundRef = useRef<string | null>(null)
   const openAnimationRef = useRef<Animation | null>(null)
   const closeAnimationRef = useRef<Animation | null>(null)
+  const detailsAnimationRef = useRef<Animation | null>(null)
   const dwellPauseTimer = useRef<number | null>(null)
 
   const selectedIndex = selected
@@ -248,10 +427,29 @@ export function ShopPage() {
 
       const sourceCard = cardRefs.current[product.name]
       sourceRectRef.current = sourceCard?.getBoundingClientRect() ?? null
+      sourceArtRectRef.current =
+        sourceCard
+          ?.querySelector<HTMLElement>('.showroom__art')
+          ?.getBoundingClientRect() ?? null
+      if (sourceCard) {
+        const sourceStyle = getComputedStyle(sourceCard)
+        sourceRadiusRef.current = sourceStyle.borderRadius
+        sourceShadowRef.current = sourceStyle.boxShadow
+        sourceBorderColorRef.current = sourceStyle.borderColor
+        sourceBackgroundRef.current = sourceStyle.backgroundColor
+      } else {
+        sourceRadiusRef.current = null
+        sourceShadowRef.current = null
+        sourceBorderColorRef.current = null
+        sourceBackgroundRef.current = null
+      }
       openAnimationRef.current?.cancel()
       openAnimationRef.current = null
       closeAnimationRef.current?.cancel()
       closeAnimationRef.current = null
+      detailsAnimationRef.current?.cancel()
+      detailsAnimationRef.current = null
+      clearExpandedBodyWidth(panelRef.current)
 
       if (dwellPauseTimer.current !== null) {
         window.clearTimeout(dwellPauseTimer.current)
@@ -300,13 +498,35 @@ export function ShopPage() {
     if (!panel || !source || prefersReducedMotion()) {
       openAnimationRef.current?.cancel()
       openAnimationRef.current = null
+      detailsAnimationRef.current?.cancel()
+      detailsAnimationRef.current = null
       finalizeClose()
       return
     }
 
     // If the panel is still opening, start the close from its current visual
-    // rect instead of snapping back to full size first.
+    // box and grid layout instead of snapping back to full size first.
     const startRect = panel.getBoundingClientRect()
+    const startStyle = getComputedStyle(panel)
+    const layout = readPanelLayout(panel)
+    const sourceArtRect =
+      source.querySelector<HTMLElement>('.showroom__art')?.getBoundingClientRect() ??
+      null
+    if (!sourceArtRect) {
+      finalizeClose()
+      return
+    }
+
+    const details = panel.querySelector<HTMLElement>(
+      '.product-expanded__body-clip',
+    )
+    const startDetailsOpacity = details
+      ? Number.parseFloat(getComputedStyle(details).opacity)
+      : 1
+
+    pinExpandedBodyWidth(panel, layout)
+    detailsAnimationRef.current?.cancel()
+    detailsAnimationRef.current = null
     openAnimationRef.current?.cancel()
     openAnimationRef.current = null
 
@@ -330,8 +550,6 @@ export function ShopPage() {
       startRect.top +
       startRect.height / 2 -
       (panelRect.top + panelRect.height / 2)
-    const startScaleX = startRect.width / panelRect.width
-    const startScaleY = startRect.height / panelRect.height
     const dx =
       sourceRect.left +
       sourceRect.width / 2 -
@@ -340,27 +558,65 @@ export function ShopPage() {
       sourceRect.top +
       sourceRect.height / 2 -
       (panelRect.top + panelRect.height / 2)
-    const scaleX = sourceRect.width / panelRect.width
-    const scaleY = sourceRect.height / panelRect.height
+
+    const collapsedChrome = collapsedPanelChrome(
+      panel,
+      sourceRect,
+      sourceArtRect,
+    )
+    const startFrame: Keyframe = {
+      width: `${startRect.width}px`,
+      height: `${startRect.height}px`,
+      padding: computedPaddingFrame(startStyle),
+      transform: `translate(${startDx}px, ${startDy}px)`,
+      borderRadius: startStyle.borderRadius,
+      boxShadow: startStyle.boxShadow,
+      borderColor: startStyle.borderColor,
+      backgroundColor: startStyle.backgroundColor,
+    }
+    const sourceStyle = getComputedStyle(source)
+    const endFrame: Keyframe = {
+      ...panelChromeFrame(collapsedChrome),
+      transform: `translate(${dx}px, ${dy}px)`,
+      borderRadius: sourceRadiusRef.current ?? sourceStyle.borderRadius,
+      boxShadow: sourceShadowRef.current ?? sourceStyle.boxShadow,
+      borderColor:
+        sourceBorderColorRef.current ?? sourceStyle.borderColor,
+      backgroundColor:
+        sourceBackgroundRef.current ?? sourceStyle.backgroundColor,
+    }
+
+    if (layout && layout.size > 0) {
+      Object.assign(startFrame, expandedLayoutFrame(layout))
+      Object.assign(
+        endFrame,
+        collapsedLayoutFrame(
+          layout,
+          layout.mode === 'columns'
+            ? sourceArtRect.width
+            : sourceArtRect.height,
+        ),
+      )
+    }
 
     try {
-      const animation = panel.animate(
-        [
-          {
-            transform: `translate(${startDx}px, ${startDy}px) scale(${startScaleX}, ${startScaleY})`,
-          },
-          {
-            transform: `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`,
-          },
-        ],
-        {
-          duration: PANEL_CLOSE_MS,
-          easing: 'cubic-bezier(0.4, 0, 1, 1)',
-          fill: 'forwards',
-        },
-      )
+      const animation = panel.animate([startFrame, endFrame], {
+        duration: PANEL_CLOSE_MS,
+        easing: 'cubic-bezier(0.4, 0, 1, 1)',
+        fill: 'forwards',
+      })
 
       closeAnimationRef.current = animation
+      // Continue the fade from its interrupted value so closing mid-open
+      // does not flash the details back to full opacity.
+      detailsAnimationRef.current = animateDetailsOpacity(
+        details,
+        startDetailsOpacity,
+        0,
+        PANEL_CLOSE_MS,
+        'cubic-bezier(0.4, 0, 1, 1)',
+        'forwards',
+      )
       animation.finished
         .then(() => {
           if (closeAnimationRef.current === animation) {
@@ -377,11 +633,15 @@ export function ShopPage() {
   useLayoutEffect(() => {
     if (!selected || isClosing) return
 
-    // Measure the selected tile and the laid-out panel, then animate between
-    // them so the panel grows out of the tile rather than the viewport center.
+    // Measure the selected tile and the laid-out panel, then animate the
+    // panel's box between them. Animating the box instead of scaling keeps the
+    // photo free of the non-uniform stretch a scale would apply.
     const panel = panelRef.current
     const sourceRect = sourceRectRef.current
-    if (!panel || !sourceRect || prefersReducedMotion()) return
+    const sourceArtRect = sourceArtRectRef.current
+    if (!panel || !sourceRect || !sourceArtRect || prefersReducedMotion()) {
+      return
+    }
 
     const panelRect = panel.getBoundingClientRect()
     if (!panelRect.width || !panelRect.height) return
@@ -394,27 +654,99 @@ export function ShopPage() {
       sourceRect.top +
       sourceRect.height / 2 -
       (panelRect.top + panelRect.height / 2)
-    const scaleX = sourceRect.width / panelRect.width
-    const scaleY = sourceRect.height / panelRect.height
 
-    const animation = panel.animate(
-      [
-        {
-          transform: `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`,
-        },
-        { transform: 'translate(0, 0) scale(1, 1)' },
-      ],
-      {
+    const layout = readPanelLayout(panel)
+    const details = panel.querySelector<HTMLElement>(
+      '.product-expanded__body-clip',
+    )
+    pinExpandedBodyWidth(panel, layout)
+
+    const targetStyle = getComputedStyle(panel)
+    const startFrame: Keyframe = {
+      ...panelChromeFrame(
+        collapsedPanelChrome(panel, sourceRect, sourceArtRect),
+      ),
+      transform: `translate(${dx}px, ${dy}px)`,
+    }
+    const endFrame: Keyframe = {
+      width: `${panelRect.width}px`,
+      height: `${panelRect.height}px`,
+      padding: computedPaddingFrame(targetStyle),
+      transform: 'translate(0px, 0px)',
+      borderRadius: targetStyle.borderRadius,
+      boxShadow: targetStyle.boxShadow,
+      borderColor: targetStyle.borderColor,
+      backgroundColor: targetStyle.backgroundColor,
+    }
+
+    if (sourceRadiusRef.current) {
+      startFrame.borderRadius = sourceRadiusRef.current
+    }
+    if (sourceShadowRef.current) {
+      startFrame.boxShadow = sourceShadowRef.current
+    }
+    if (sourceBorderColorRef.current) {
+      startFrame.borderColor = sourceBorderColorRef.current
+    }
+    if (sourceBackgroundRef.current) {
+      startFrame.backgroundColor = sourceBackgroundRef.current
+    }
+
+    if (layout && layout.size > 0) {
+      Object.assign(
+        startFrame,
+        collapsedLayoutFrame(
+          layout,
+          layout.mode === 'columns'
+            ? sourceArtRect.width
+            : sourceArtRect.height,
+        ),
+      )
+      Object.assign(endFrame, expandedLayoutFrame(layout))
+    }
+
+    let animation: Animation
+    try {
+      animation = panel.animate([startFrame, endFrame], {
         duration: PANEL_OPEN_MS,
         easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-      },
-    )
+      })
+    } catch {
+      clearExpandedBodyWidth(panel)
+      return
+    }
 
     openAnimationRef.current = animation
+    // Fade the copy and title in over the same interval as the panel growth.
+    const detailsAnimation = animateDetailsOpacity(
+      details,
+      0,
+      1,
+      PANEL_OPEN_MS,
+      'cubic-bezier(0.22, 1, 0.36, 1)',
+    )
+    if (detailsAnimation) detailsAnimationRef.current = detailsAnimation
+
+    animation.finished
+      .then(() => {
+        if (openAnimationRef.current === animation) {
+          openAnimationRef.current = null
+          clearExpandedBodyWidth(panel)
+        }
+        if (detailsAnimationRef.current === detailsAnimation) {
+          detailsAnimationRef.current = null
+        }
+      })
+      .catch(() => {})
+
     return () => {
       animation.cancel()
+      detailsAnimation?.cancel()
       if (openAnimationRef.current === animation) {
         openAnimationRef.current = null
+      }
+      if (detailsAnimationRef.current === detailsAnimation) {
+        detailsAnimationRef.current = null
       }
     }
   }, [selected, isClosing])
@@ -495,6 +827,7 @@ export function ShopPage() {
       }
       openAnimationRef.current?.cancel()
       closeAnimationRef.current?.cancel()
+      detailsAnimationRef.current?.cancel()
     }
   }, [])
 
@@ -823,26 +1156,28 @@ export function ShopPage() {
               />
             </div>
 
-            <div className="product-expanded__body">
-              <p className="eyebrow">
-                Piece {String(selectedIndex + 1).padStart(2, '0')} · showroom
-              </p>
+            <div className="product-expanded__body-clip">
+              <div className="product-expanded__body">
+                <p className="eyebrow">
+                  Piece {String(selectedIndex + 1).padStart(2, '0')} · showroom
+                </p>
 
-              <h2 id="product-expanded-title">{selected.name}</h2>
-              <p className="product-expanded__price">{selected.price}</p>
-              <p
-                className="product-expanded__copy"
-                id="product-expanded-copy"
-              >
-                {selected.description}
-              </p>
-              <p className="product-expanded__spec">{selected.spec}</p>
+                <h2 id="product-expanded-title">{selected.name}</h2>
+                <p className="product-expanded__price">{selected.price}</p>
+                <p
+                  className="product-expanded__copy"
+                  id="product-expanded-copy"
+                >
+                  {selected.description}
+                </p>
+                <p className="product-expanded__spec">{selected.spec}</p>
 
-              <p className="product-expanded__hint">
-                {gazeActive
-                  ? 'Look away or use the close control to return to the showroom.'
-                  : 'Use the close control or Esc to return to the showroom.'}
-              </p>
+                <p className="product-expanded__hint">
+                  {gazeActive
+                    ? 'Look away or use the close control to return to the showroom.'
+                    : 'Use the close control or Esc to return to the showroom.'}
+                </p>
+              </div>
             </div>
           </article>
         </div>
