@@ -21,7 +21,7 @@ const GAZE_HOVER_ATTRIBUTE = 'data-gaze-hover'
 /** Wait briefly in a band before moving the page. */
 const SCROLL_ENGAGE_MS = 160
 /** Slow page speed at the outer edge of a scroll band, in px/s. */
-const SCROLL_MAX_SPEED = 260
+const SCROLL_MAX_SPEED = 480
 /** Ignore the bands briefly after a wheel or manual scroll. */
 const MANUAL_SCROLL_BLOCK_MS = 350
 /** Time to ease a clipped card's row to the middle of the viewport. */
