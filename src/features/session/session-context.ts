@@ -25,7 +25,10 @@ export interface MediaSessionValue {
   error: MediaError | null
   /** True once the visitor has entered the shop this session. */
   entered: boolean
-  /** Head and eye pose to screen mapping. Null until calibration succeeds. */
+  /**
+   * Active head and eye pose to screen mapping. A camera session restores the
+   * locally saved mapping when one exists; null otherwise.
+   */
   calibration: HeadCalibration | null
   /**
    * True when a live camera track ended unexpectedly. The session falls back

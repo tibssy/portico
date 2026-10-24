@@ -16,7 +16,7 @@ This is a prototype. The entrance, five-point calibration, and gaze-driven produ
 | --- | --- |
 | Landing page, routing, session guards | done |
 | Camera + microphone permissions, device check, degraded modes | done |
-| Head-pose and iris capture, five-point calibration, sensitivity and noise damping | done |
+| Head-pose and iris capture, locally saved five-point calibration, sensitivity and noise damping | done |
 | Gaze highlighting, per-tile deadzone, dwell selection, and inline product details | done |
 | Responsive five-to-two-column product grid | done |
 | Voice assistant and Parakeet worker | planned |
@@ -46,7 +46,7 @@ Pushing to `main` builds and deploys the app to GitHub Pages via `.github/workfl
 | --- | --- |
 | `/` | Landing page, capability detection, entry point |
 | `/check` | Permission request, camera preview, mic meter, degraded entry |
-| `/calibrate` | Five-point head and iris calibration, per-axis sensitivity, and noise damping (camera sessions only) |
+| `/calibrate` | Five-point head and iris calibration, per-axis sensitivity, and noise damping. Saved mappings are reused on later visits and can be replaced from the device check or shop (camera sessions only) |
 | `/shop` | Guarded product grid with gaze highlighting, dwell selection, and an inline expanded card |
 | `*` | Not found |
 
@@ -55,13 +55,13 @@ Pushing to `main` builds and deploys the app to GitHub Pages via `.github/workfl
 1. The landing CTA calls `getUserMedia` directly inside the click, which keeps the browser's user-gesture requirement intact (important on iOS).
 2. Desktop requests camera + microphone; touch devices request the microphone only.
 3. `/check` shows the live preview and input level. Denials fall back to audio-only or pointer-only browsing, never a dead end. If a camera track ends later (unplugged, revoked, or claimed by another app), the session drops to pointer mode and the shop offers a reconnect button instead of pretending gaze is still live.
-4. Camera sessions continue to `/calibrate`: five dots are sampled one at a time, and a linear fit per axis maps blended head yaw and eye angle onto the viewport. Each dot is checked for per-axis spread while it is held; a point that moves too much is retried, and a persistently noisy run returns to the start with an explanation. A weak or noisy fit is rejected and can be retried. The tuning stage exposes per-axis sensitivity sliders and a noise-damping slider with a live cursor, so a visitor can tune reach and jitter before entering.
+4. Camera sessions continue to `/calibrate`: five dots are sampled one at a time, and a linear fit per axis maps blended head yaw and eye angle onto the viewport. Each dot is checked for per-axis spread while it is held; a point that moves too much is retried, and a persistently noisy run returns to the start with an explanation. A weak or noisy fit is rejected and can be retried. The tuning stage exposes per-axis sensitivity sliders and a noise-damping slider with a live cursor, so a visitor can tune reach and jitter before entering. The finished mapping is saved in this browser, so a later camera session restores it and skips the dots unless the visitor chooses Recalibrate gaze from the device check or shop.
 5. `/shop` is guarded: it requires a live stream (calibrated for camera sessions) or an explicit pointer-only session. The calibrated pose highlights the card or button under the gaze over a 15-piece grid; no floating cursor is drawn. Each card acts as a deadzone: small head or eye movements while the gaze is on a tile are ignored, and a deliberate move releases it. A progress edge indicator starts at the bottom center of the focused tile after a one-second hold and sweeps clockwise over 1.2 seconds. The top and bottom tenth of the usable viewport scroll the grid after a short engage delay; buttons keep priority over the bands, the bands keep priority over tiles, and the gradient cue uses the accent colour. When a newly focused tile is clipped by the viewport, its row eases to the middle. Holding on a tile expands it into a wider inline detail card that scales out of the tile and collapses back into it; the rest of the grid is inactive while the card is open, and looking away closes it. The expanded card is exposed as a modal dialog, keeps Tab focus inside its controls, and returns focus to the source tile when it closes. Scroll bands and centring pause while the expanded card is open, and wheel scrolling temporarily wins over gaze scrolling.
-6. Leaving the shop stops every track, clears the calibration, and increments a request generation, so a late permission grant cannot re-open the camera.
+6. Leaving the shop stops every track, clears the active calibration, and increments a request generation, so a late permission grant cannot re-open the camera. The saved mapping stays in local storage for the next visit.
 
 ## Privacy
 
-Video never leaves the browser. Head and eye tracking runs locally, frames are discarded after inference, and audio is buffered only while the assistant listens. The speech model is about 210 MB and is downloaded once, then cached.
+Video never leaves the browser. Head and eye tracking runs locally, frames are discarded after inference, and audio is buffered only while the assistant listens. The calibration mapping is saved in local storage so a returning visitor can skip setup; it contains no frames or raw sensor history. The speech model is about 210 MB and is downloaded once, then cached.
 
 ## Notes
 
@@ -70,7 +70,7 @@ Video never leaves the browser. Head and eye tracking runs locally, frames are d
 - Gaze tracking uses a speed-adaptive PID filter. Noise damping raises the resting filter and deadband, but a deliberate head movement or glance shortens the input filter so the gaze does not feel laggy. On a product tile, a 20 px deadzone holds the highlight still while the raw gaze stays on that tile; moving beyond the tile releases it. The calibration screen keeps its live cursor for tuning; the shop only highlights targets.
 - Edge scrolling uses the top and bottom 10% of the area below the sticky header. A 160 ms engage delay prevents a glance through a band from moving the page, and the speed eases in with how deep the gaze sits in the band. The bands clear tile targeting while active, buttons keep priority, and a 350 ms wheel cooldown avoids fighting manual scrolling. A clipped focused tile is eased to the middle of the usable viewport over 420 ms unless reduced motion is requested.
 - Controls can opt into a larger invisible target for gaze only with `data-gaze-expand="<px>"` next to `data-gaze-action`. The expanded product close button uses 16 px, so it is easier to glance at while pointer hit-testing keeps the real button box.
-- `npm test` uses Node's built-in test runner on the pure modules: edge scrolling and centring maths, the speed-adaptive cursor controller, pose extraction, per-point calibration spread, and the linear calibration fit. Browser-only behaviour (camera lifecycle, focus containment) is checked separately.
+- `npm test` uses Node's built-in test runner on the pure modules: edge scrolling and centring maths, the speed-adaptive cursor controller, pose extraction, per-point calibration spread, the linear calibration fit, and saved-calibration validation. Browser-only behaviour (camera lifecycle, focus containment) is checked separately.
 - The face model is self-hosted at `public/mediapipe/face_landmarker.task` (MediaPipe Face Landmarker, Apache 2.0). The WASM runtime is copied from `node_modules/@mediapipe/tasks-vision/wasm` at dev and build time by `vite-plugin-static-copy`, so production stays self-contained.
 - The Parakeet Redux ONNX export ships a 344 MB 4-bit encoder. Re-exporting at 2 bits yields a 193 MB encoder with identical values. The speech phase will target the 2-bit build (~212 MB total) with the published 4-bit build as fallback.
 - Speech model weights and the reference browser worker are CC BY 4.0. Attribution belongs in the about screen before release.

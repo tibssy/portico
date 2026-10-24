@@ -1,7 +1,12 @@
 import { useNavigate } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { Brand } from '../../components/Brand.tsx'
-import { ArrowIcon, CameraIcon, MicIcon } from '../../components/Icons.tsx'
+import {
+  ArrowIcon,
+  CameraIcon,
+  EyeIcon,
+  MicIcon,
+} from '../../components/Icons.tsx'
 import { isTouchMode } from '../../lib/capabilities.ts'
 import { hasLiveTrack } from '../../lib/media.ts'
 import { useMediaSession } from '../session/session-context.ts'
@@ -81,6 +86,10 @@ export function DeviceCheckPage() {
   const browse = () => {
     continueWithoutMedia()
     navigate('/shop')
+  }
+
+  const recalibrate = () => {
+    navigate('/calibrate')
   }
 
   const cameraValue = coarse
@@ -189,16 +198,16 @@ export function DeviceCheckPage() {
                       : 'Calibration next'
                     : 'Camera off'
               }
-              tone={calibrated ? 'ready' : 'muted'}
+              tone={hasVideo && calibrated ? 'ready' : 'muted'}
             >
               <p className="status-row__note">
                 {coarse
                   ? 'Swipe and voice replace gaze tracking on small screens.'
-                  : calibrated
-                    ? 'Five-point calibration is complete. You can recalibrate from the shop.'
-                    : hasVideo
-                      ? 'A five-point calibration comes next, right after this step.'
-                      : 'Gaze tracking needs the camera.'}
+                  : !hasVideo
+                    ? 'Gaze tracking needs the camera.'
+                    : calibrated
+                      ? 'Five-point calibration is saved on this device. Recalibrate here or from the shop.'
+                      : 'A five-point calibration comes next, right after this step.'}
               </p>
             </StatusRow>
 
@@ -234,6 +243,17 @@ export function DeviceCheckPage() {
                     : 'Enter the shop'}
                   <ArrowIcon />
                 </button>
+
+                {hasVideo && calibrated && (
+                  <button
+                    className="btn btn--ghost btn--block"
+                    type="button"
+                    onClick={recalibrate}
+                  >
+                    <EyeIcon className="icon" />
+                    Recalibrate gaze
+                  </button>
+                )}
 
                 {hasVideo && (
                   <button

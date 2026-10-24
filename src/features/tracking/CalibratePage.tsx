@@ -70,6 +70,8 @@ export function CalibratePage() {
   const navigate = useNavigate()
   const {
     stream,
+    entered,
+    calibration: activeCalibration,
     setCalibration,
     markEntered,
     continueWithoutMedia,
@@ -473,6 +475,18 @@ export function CalibratePage() {
               >
                 Use pointer mode instead
               </button>
+
+              {activeCalibration && (
+                <button
+                  className="btn btn--text"
+                  type="button"
+                  onClick={() => navigate(entered ? '/shop' : '/check')}
+                >
+                  {entered
+                    ? 'Keep current calibration'
+                    : 'Back to device check'}
+                </button>
+              )}
             </div>
 
             <p className="calibrate__fine">

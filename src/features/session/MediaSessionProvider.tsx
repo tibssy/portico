@@ -8,6 +8,10 @@ import type {
   MediaSessionValue,
 } from './session-context.ts'
 import type { HeadCalibration } from '../tracking/head-pose.ts'
+import {
+  loadCalibration,
+  saveCalibration,
+} from '../tracking/calibration-storage.ts'
 
 const VIDEO_CONSTRAINTS: MediaTrackConstraints = {
   width: { ideal: 960 },
@@ -156,7 +160,10 @@ export function MediaSessionProvider({ children }: { children: ReactNode }) {
         streamRef.current = nextStream
         setStream(nextStream)
         setMode(wantsVideo ? 'full' : 'voice')
-        setCalibrationState(null)
+        // A camera session can reuse the mapping saved on this device. Voice
+        // sessions have no gaze, and a failed request leaves the old active
+        // mapping alone until the next successful camera start.
+        setCalibrationState(wantsVideo ? loadCalibration() : null)
         setCameraStopped(false)
         setPhase('ready')
       } catch (cause) {
@@ -198,6 +205,7 @@ export function MediaSessionProvider({ children }: { children: ReactNode }) {
 
   const setCalibration = useCallback((next: HeadCalibration) => {
     setCalibrationState(next)
+    saveCalibration(next)
   }, [])
 
   const leave = useCallback(() => {
